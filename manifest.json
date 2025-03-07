@@ -1,0 +1,11 @@
+{
+    "domain": "klereo",
+    "name": "Klereo Connect Integration",
+    "version": "1.0.0",
+    "requirements": ["requests"],
+    "dependencies": [],
+    "codeowners": ["@ldousset-klr"],
+    "documentation": "https://connect.klereo.fr/software/whatsnew.html",
+    "iot_class": "cloud_polling",  
+    "config_flow": true
+}
