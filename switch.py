@@ -1,4 +1,5 @@
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
@@ -33,9 +34,17 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         self._index = out['index']
         self._type = out['type']
         self._mode = out['mode']
-        self._state = out['status']
         self._realstate = out['realStatus']
         self._poolid = poolid
+        # Optimistic state held between a write and the next successful poll.
+        self._optimistic_state = None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        # Fresh data won: drop the optimistic value so external changes
+        # (schedule, mobile app, manual override) are reflected again.
+        self._optimistic_state = None
+        super()._handle_coordinator_update()
 
     @property
     def name(self):
@@ -43,14 +52,12 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self):
+        if self._optimistic_state is not None:
+            return self._optimistic_state
         outs = self.coordinator.data['outs']
         for out in outs:
             if out['index'] == self._index:
-                LOGGER.debug(f"{self._name}={out['status']}, state={self._state}")
-                if self._state == "on":
-                    return True
-                if self._state == "off":
-                    return False
+                LOGGER.debug(f"{self._name}={out['status']}")
                 return out['status']==1
         return None
 
@@ -78,19 +85,15 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         await self.hass.async_add_executor_job(self._api.turn_on_device, self._index)
-        LOGGER.debug(f"update HA state {self._state} (before)")
-        LOGGER.debug(f"Todo: update coordinator data !")
-        self._state = "on"
+        self._optimistic_state = True
         self.async_write_ha_state()
-        LOGGER.debug(f"HA state={self._state}")
+        await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs):
         await self.hass.async_add_executor_job(self._api.turn_off_device, self._index)
-        LOGGER.debug(f"update HA state {self._state} (before)")
-        LOGGER.debug(f"Todo: update coordinator data !")
-        self._state = "off"
+        self._optimistic_state = False
         self.async_write_ha_state()
-        LOGGER.debug(f"HA state={self._state}")
+        await self.coordinator.async_request_refresh()
 
     async def async_set_mode(self, mode):
         #if mode not in ["manual", "timer", "schedule"]:

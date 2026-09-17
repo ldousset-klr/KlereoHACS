@@ -6,3 +6,4 @@ DEF_POOLID = 0
 KLEREOSERVER = "https://connect.klereo.fr/php"
 UPDATE_INTERVAL = 300
 HA_VERSION = "100-HA"
+HTTP_TIMEOUT = 30

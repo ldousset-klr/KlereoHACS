@@ -28,10 +28,11 @@ set in `const.py` as `KLEREOSERVER`).
 
 - `klereo_api.py` — `KlereoAPI`, the only networking layer. Plain **synchronous**
   `requests`; it must never be called directly from the event loop. Auth is lazy: every
-  method checks `self.jwt` and calls `get_jwt()` (SHA-1 of the password POSTed to
-  `GetJWT.php`) if unset, then sends `Authorization: Bearer <jwt>`. There is no token
-  expiry/refresh handling — an expired JWT surfaces as an HTTP error from
-  `raise_for_status()`.
+  authenticated call goes through `_post()`, which lazily calls `get_jwt()` (SHA-1 of the
+  password POSTed to `GetJWT.php`), sends `Authorization: Bearer <jwt>`, and on a 401/403
+  clears the token and replays the request **once** before `raise_for_status()`. Every
+  request carries `timeout=HTTP_TIMEOUT` (30 s) so a hung server cannot pin an executor
+  thread. `turn_on_device`/`turn_off_device` are thin wrappers over `set_out()`.
 - `__init__.py` — `async_setup_entry` builds the `KlereoAPI`, wraps `api.get_pool` in
   `hass.async_add_executor_job` (this is the bridge between HA's async world and the
   blocking `requests` calls), and drives a `DataUpdateCoordinator` polling every
@@ -55,14 +56,13 @@ The rest of the code depends on these keys:
 
 Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode: 2` (manual) and
 `newState` 0/1. Because a write is not reflected in coordinator data until the next poll,
-`KlereoOut` shadows the value in `self._state` ("on"/"off") and `is_on` prefers that
-shadow over `out['status']` — a known hack marked `Todo: update coordinator data` in the
-source.
+`KlereoOut` keeps an optimistic `self._optimistic_state` (True/False/None) that `is_on`
+prefers over `out['status']`. It is cleared in `_handle_coordinator_update()`, so fresh
+server data always wins; a write also fires `coordinator.async_request_refresh()` so that
+handover happens in seconds rather than at the next 300 s poll.
 
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- `KlereoAPI.get_index()` logs an undefined name `sensors` and raises `NameError` if ever
-  called; nothing calls it today.
 - `KlereoSensor` hardcodes `device_class = "temperature"` and `°C` for *every* probe,
   including pH and redox probes. The real type is in `probe['type']`, currently only
   exposed as an attribute.
