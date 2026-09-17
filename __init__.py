@@ -2,11 +2,13 @@
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from datetime import timedelta
+from requests import RequestException
 
 from .const import DOMAIN,UPDATE_INTERVAL
-from .klereo_api import KlereoAPI
+from .klereo_api import KlereoAPI, KlereoAuthError, KlereoError
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -20,7 +22,13 @@ async def async_setup(hass: HomeAssistant, config: dict):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     async def async_update_data():
-        return await hass.async_add_executor_job(api.get_pool)
+        try:
+            return await hass.async_add_executor_job(api.get_pool)
+        except KlereoAuthError as err:
+            # Hands the entry over to the reauth flow instead of retrying forever.
+            raise ConfigEntryAuthFailed(str(err)) from err
+        except (KlereoError, RequestException) as err:
+            raise UpdateFailed(str(err)) from err
 
     # Initialize the API
     LOGGER.info(f"Initializing {DOMAIN} for pool #{entry.data.get('poolid')}...")

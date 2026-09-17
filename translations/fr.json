@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Klereo Connect",
+        "description": "Connectez-vous avec vos identifiants Klereo.",
+        "data": {
+          "username": "Identifiant",
+          "password": "Mot de passe",
+          "poolid": "Numéro de piscine"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Klereo Connect",
+        "description": "Klereo a refusé les identifiants enregistrés. Merci de les saisir à nouveau.",
+        "data": {
+          "username": "Identifiant",
+          "password": "Mot de passe"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Identifiant, mot de passe ou numéro de piscine incorrect.",
+      "cannot_connect": "Serveur Klereo injoignable."
+    },
+    "abort": {
+      "reauth_successful": "Ré-authentification réussie."
+    }
+  }
+}

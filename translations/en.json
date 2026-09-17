@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Klereo Connect",
+        "description": "Connect using your Klereo credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "poolid": "Pool ID"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Klereo Connect",
+        "description": "Klereo rejected the stored credentials. Please enter them again.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password, or unknown pool ID.",
+      "cannot_connect": "Could not reach the Klereo server."
+    },
+    "abort": {
+      "reauth_successful": "Re-authentication was successful."
+    }
+  }
+}

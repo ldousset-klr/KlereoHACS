@@ -33,14 +33,25 @@ set in `const.py` as `KLEREOSERVER`).
   clears the token and replays the request **once** before `raise_for_status()`. Every
   request carries `timeout=HTTP_TIMEOUT` (30 s) so a hung server cannot pin an executor
   thread. `turn_on_device`/`turn_off_device` are thin wrappers over `set_out()`.
+  Failures raise `KlereoAuthError` (bad credentials, refused JWT) or `KlereoError`
+  (anything else) — never a raw `KeyError`/`IndexError`. The API also answers *some*
+  failures with HTTP 200 and an error payload, so `_payload_error()` inspects the body;
+  when that error text matches `AUTH_HINTS` it is treated like a 401. **Those hints are a
+  heuristic** — no real expired-token payload has been observed yet, so confirm them
+  against a live capture before relying on them.
 - `__init__.py` — `async_setup_entry` builds the `KlereoAPI`, wraps `api.get_pool` in
   `hass.async_add_executor_job` (this is the bridge between HA's async world and the
   blocking `requests` calls), and drives a `DataUpdateCoordinator` polling every
   `UPDATE_INTERVAL` (300 s). Coordinator + api are stashed in
   `hass.data[DOMAIN][entry.entry_id]` for the platforms. `PLATFORMS = ["sensor", "switch"]`.
-- `config_flow.py` — single-step UI flow collecting username/password/poolID.
-  `_test_credentials` is a **stub that always passes**, so bad credentials only fail later
-  during the coordinator's first refresh.
+  The update callback maps `KlereoAuthError` to `ConfigEntryAuthFailed` (triggering the
+  reauth flow) and `KlereoError`/`RequestException` to `UpdateFailed`.
+- `config_flow.py` — UI flow collecting username/password/poolID. `_test_credentials`
+  performs a real `get_pool()` in the executor, so a bad login *and* a bad poolID are
+  caught at setup time. `async_step_reauth`/`async_step_reauth_confirm` handle the
+  `ConfigEntryAuthFailed` the coordinator raises. Form error keys (`invalid_auth`,
+  `cannot_connect`) must exist in `strings.json` **and** `translations/*.json` — HA reads
+  the latter at runtime, so adding a key to only one of them shows a raw slug in the UI.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
   re-scan `coordinator.data` on every property read rather than caching.
@@ -66,7 +77,8 @@ handover happens in seconds rather than at the next 300 s poll.
 - `KlereoSensor` hardcodes `device_class = "temperature"` and `°C` for *every* probe,
   including pH and redox probes. The real type is in `probe['type']`, currently only
   exposed as an attribute.
-- `KlereoOut.async_set_mode` / `KlereoAPI.set_device_mode` are stubs that only log.
+- `KlereoOut.async_set_mode` / `KlereoAPI.set_device_mode` are stubs that only log, and
+  `async_set_mode` is not registered as a service, so nothing can reach it.
 - Entity names are the raw `klereo<id>probe<n>` scheme; the README lists auto-naming from
   the Klereo default names as a TODO.
 - `KlereoSensor` extends only `CoordinatorEntity` (not `SensorEntity`), unlike `KlereoOut`
