@@ -1,8 +1,17 @@
 # Home Assistant HACS integration for KLEREO swimmingpools
 
-Install in:  config/custom_components/klereo
+## Installation
 
-Connect using your klereo credentials
+**Via HACS** — add this repository as a custom repository (category: *Integration*),
+install it, then restart Home Assistant.
+
+**Manually** — copy `custom_components/klereo/` into your Home Assistant
+`config/custom_components/` directory, then restart Home Assistant.
+
+## Configuration
+
+Add the integration from *Settings > Devices & Services > Add Integration > Klereo*,
+and connect using your Klereo credentials.
 
 Get your **poolID** using browser debug 
 

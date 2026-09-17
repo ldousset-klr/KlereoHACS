@@ -5,21 +5,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A Home Assistant custom integration (distributed via HACS) for Klereo swimming pool
-controllers. The repository root **is** the component directory: files are installed to
-`config/custom_components/klereo/` on the Home Assistant host. There is no package
-subdirectory, no build system, no test suite, and no lint/CI configuration — the relative
-imports (`from .const import ...`) only resolve once the files sit inside
-`custom_components/klereo/`.
+controllers. The component lives in `custom_components/klereo/` and is copied as-is to
+the same path under the Home Assistant host's `config/`. The root holds only `README.md`,
+`hacs.json` (HACS reads it there, never inside the component) and `icon.png`. There is no
+build system, no test suite, and no lint/CI configuration.
+
+All source paths below are relative to `custom_components/klereo/`.
 
 ## Testing changes
 
-There is no local test harness. The only way to exercise the code is to copy the repo
-contents into a running Home Assistant's `config/custom_components/klereo/`, restart HA,
-add the integration via the UI config flow (username / password / poolID), and read the
-logs. Everything logs through `logging.getLogger(__name__)` at INFO/DEBUG, so raise the
+There is no local test harness. The only way to exercise the code is to copy
+`custom_components/klereo/` into a running Home Assistant's `config/custom_components/`,
+restart HA, add the integration via the UI config flow (username / password / poolID),
+and read the logs. Everything logs through `logging.getLogger(__name__)` at INFO/DEBUG, so raise the
 `custom_components.klereo` logger to `debug` in `configuration.yaml` when debugging.
 
 Bump `version` in `manifest.json` when publishing a release that HACS should pick up.
+`hacs.json` declares the minimum Home Assistant version (2022.8.0, set by the use of
+`async_forward_entry_setups`); raise it if newer HA APIs are adopted.
 
 ## Architecture
 
