@@ -99,11 +99,12 @@ The rest of the code depends on these keys:
   `updateTime`. **`status` is not a boolean, and its meaning depends on the output**: on
   the filtration it is a variable-speed index, 0 (stopped) to 7; on every other output it
   is `0` off, `1` on, `2` *unknown*. So `is_on` returns `None` on a 2 it did not read from
-  the filtration — reporting it as on or off would both be wrong. Which index is the
-  filtration is the weak point: `FILTRATION_OUT_INDEX` is 1, seen on both captured pools
-  (its `totalTime` tracks `params.Filtration_TotalTime`), but that is not proven to be
-  fixed by the firmware. `mode` and the out `type` vary between pools (types other than 0,
-  modes up to 8 observed) and are exposed as attributes only.
+  the filtration — reporting it as on or off would both be wrong. Roles look fixed by index rather
+  than declared: on both captured pools, outs 1/2/3/4 `totalTime` matches `params`
+  `Filtration_`, `PHMinus_`, `ElectroChlore_` and `Chauff_TotalTime`, which is what
+  `FILTRATION_OUT_INDEX = 1` rests on. **`outs[].type` is not the role** — it is 0 on every
+  output of one pool, and 8 on the disinfectant and the heater of the other, so it does not
+  follow the firmware's `e_OutTypes`; treat it, like `mode`, as an attribute only.
 
 Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode: 2` (manual) and
 `newState`, which takes the same encoding as `status` above — so turning the filtration on

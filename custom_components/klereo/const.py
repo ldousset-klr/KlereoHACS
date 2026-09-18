@@ -58,7 +58,11 @@ OUT_STATUS_ON = 1
 OUT_STATUS_UNKNOWN = 2
 
 # Which out carries the filtration, and so which one reads as a speed index.
-# Both captured pools use index 1, whose totalTime tracks
-# params.Filtration_TotalTime, but nothing proves the firmware always fixes it
-# there — confirm before relying on it.
+#
+# Output roles look fixed by index, not declared in the payload: across two
+# captured pools, outs 1/2/3/4 totalTime matches params Filtration_, PHMinus_,
+# ElectroChlore_ and Chauff_TotalTime respectively (exactly for 2/3/4, within a
+# poll for the filtration). Note outs[].type does NOT give the role — it read 0
+# on all of them in one pool and 8 on the disinfectant and the heater in the
+# other, so it is not the firmware's e_OutTypes.
 FILTRATION_OUT_INDEX = 1
