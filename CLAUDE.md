@@ -57,7 +57,10 @@ set in `const.py` as `KLEREOSERVER`).
   the latter at runtime, so adding a key to only one of them shows a raw slug in the UI.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
-  re-scan `coordinator.data` on every property read rather than caching.
+  re-scan `coordinator.data` on every property read rather than caching. `KlereoSensor`
+  resolves its unit once in `__init__` and exposes `native_value`; `device_class` and
+  `state_class` are kept as plain strings in `const.py` so no enum member missing from an
+  older Home Assistant can break the import.
 
 ### Shape of the `GetPoolDetails.php` payload
 
@@ -66,6 +69,17 @@ The rest of the code depends on these keys:
 
 - `idSystem` — pool id, used in entity naming (`klereo<poolid>probe<index>`, `klereo<poolid>out<index>`).
 - `probes[]` — one sensor each; fields `index`, `type`, `filteredValue`, `filteredTime`.
+  `type` selects the unit through `PROBE_TYPES` in `const.py` (1 air °C, 3 pH, 4 redox mV,
+  5 water °C); unmapped types are published unitless rather than mislabelled. A
+  `filteredValue` of `-1000` means the probe is absent or unreadable and becomes `None`.
+- `params` is what identifies a probe's role: `EauCapteur`, `pHCapteur`, `TraitCapteur`
+  and `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax`
+  mirror the matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`,
+  `AirMin/Max`). That cross-check is how the `PROBE_TYPES` table was derived — use it
+  again to identify the still-unknown types 10 and 12.
+- `IORename[]` carries the user's own names: `ioType: 1` entries index into `outs[]`,
+  `ioType: 2` into `probes[]`. This is what the README's auto-naming TODO needs; nothing
+  reads it yet.
 - `outs[]` — one switch each; fields `index`, `type`, `mode`, `status`, `realStatus`, `updateTime`.
 
 Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode: 2` (manual) and
@@ -77,15 +91,10 @@ handover happens in seconds rather than at the next 300 s poll.
 
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- `KlereoSensor` hardcodes `device_class = "temperature"` and `°C` for *every* probe,
-  including pH and redox probes. The real type is in `probe['type']`, currently only
-  exposed as an attribute.
 - `KlereoOut.async_set_mode` / `KlereoAPI.set_device_mode` are stubs that only log, and
   `async_set_mode` is not registered as a service, so nothing can reach it.
 - Entity names are the raw `klereo<id>probe<n>` scheme; the README lists auto-naming from
   the Klereo default names as a TODO.
-- `KlereoSensor` extends only `CoordinatorEntity` (not `SensorEntity`), unlike `KlereoOut`
-  which extends both.
 
 ## README TODOs worth knowing
 

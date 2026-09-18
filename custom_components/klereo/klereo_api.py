@@ -48,8 +48,10 @@ class KlereoAPI:
             value = data.get(key)
             if value and str(value).lower() not in ("ok", "success", "0", "none"):
                 return f"{key}={value}"
+        # A live GetPoolDetails capture shows the envelope always carries
+        # "status": "ok", so anything else in that field is a failure.
         status = data.get("status")
-        if isinstance(status, str) and status.lower() in ("ko", "error", "failed"):
+        if isinstance(status, str) and status.lower() not in ("ok", "success"):
             return f"status={status}"
         return None
 

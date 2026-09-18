@@ -1,7 +1,7 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, PROBE_INVALID, PROBE_TYPES, PROBE_TYPE_DEFAULT
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     async_add_entities(sensors, update_before_add=True)
 
 
-class KlereoSensor(CoordinatorEntity):
+class KlereoSensor(CoordinatorEntity, SensorEntity):
 
     def __init__(self, coordinator, probe, poolid):
         super().__init__(coordinator)
@@ -31,39 +31,55 @@ class KlereoSensor(CoordinatorEntity):
         self._index = probe['index']
         self._type = probe['type']
         self._poolid = poolid
+        if self._type not in PROBE_TYPES:
+            LOGGER.warning(
+                "Unknown Klereo probe type %s on probe %s of pool #%s; "
+                "publishing it without a unit",
+                self._type, self._index, poolid,
+            )
+        device_class, unit, state_class = PROBE_TYPES.get(self._type, PROBE_TYPE_DEFAULT)
+        self._attr_device_class = device_class
+        self._attr_native_unit_of_measurement = unit
+        self._attr_state_class = state_class
+
+    def _probe(self):
+        """Return this probe in the freshest payload, or None if it disappeared."""
+        for probe in self.coordinator.data['probes']:
+            if probe['index'] == self._index:
+                return probe
+        return None
 
     @property
     def name(self):
         return self._name
 
     @property
-    def state(self):
-        probes = self.coordinator.data['probes']
-        for probe in probes:
-            if probe['index'] == self._index:
-                LOGGER.debug(f"{self._name}={probe['filteredValue']}")
-                return float(probe['filteredValue'])
-        return None
-
-    @property
     def unique_id(self):
         return f"id_{self._name}"
 
     @property
-    def device_class(self):
-        return "temperature"
-
-    @property
-    def unit_of_measurement(self):
-        return "°C"
+    def native_value(self):
+        probe = self._probe()
+        if probe is None:
+            return None
+        try:
+            value = float(probe['filteredValue'])
+        except (KeyError, TypeError, ValueError):
+            LOGGER.debug(f"{self._name} has no usable value: {probe.get('filteredValue')!r}")
+            return None
+        if value <= PROBE_INVALID:
+            # Absent or unreadable probe: report unknown rather than -1000.
+            LOGGER.debug(f"{self._name} reports no measurement ({value})")
+            return None
+        LOGGER.debug(f"{self._name}={value}")
+        return value
 
     @property
     def extra_state_attributes(self):
-        probes = self.coordinator.data['probes']
-        for probe in probes:
-            if probe['index'] == self._index:
-                return {
-                    'Time': probe['filteredTime'],
-                    'Type': int(probe['type'])
-                }
-        return None
+        probe = self._probe()
+        if probe is None:
+            return None
+        return {
+            'Time': probe['filteredTime'],
+            'Type': int(probe['type'])
+        }
