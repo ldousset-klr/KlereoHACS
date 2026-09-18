@@ -91,8 +91,14 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
         probe = self._probe()
         if probe is None:
             return None
+        # filteredValue is what the state reports, and it freezes when the
+        # filtration stops — a water reading without circulation is meaningless.
+        # It can then sit hours behind directValue, so both are exposed: compare
+        # Time and DirectTime to tell a settled reading from a stale one.
         return {
             'Time': probe['filteredTime'],
+            'Direct': probe.get('directValue'),
+            'DirectTime': probe.get('directTime'),
             'Type': int(probe['type']),
             'TypeName': self._label
         }

@@ -100,6 +100,12 @@ The rest of the code depends on these keys:
 
 - `idSystem` — pool id, used in entity naming (`klereo<poolid>probe<index>`, `klereo<poolid>out<index>`).
 - `probes[]` — one sensor each; fields `index`, `type`, `filteredValue`, `filteredTime`.
+  The state reports `filteredValue`, the smoothed reading. **It freezes while the
+  filtration is off** — one pool was seen with `filteredTime` 6207 against `directTime`
+  603, its pressure probe reporting 2337 against a live 1216 — which is deliberate, since
+  a water measurement without circulation means nothing, but it does mean a sensor can sit
+  hours behind. `directValue`/`directTime` are exposed as attributes so the two can be
+  compared.
   `type` selects the unit through `PROBE_TYPES` in `const.py`, keyed by the firmware's
   `e_TypeCapteurs` enum (0-15, the authoritative list — a type outside it logs a warning).
   Every mapped unit is confirmed against the firmware. `GENERIC` (10), `UNKNOWN` (15) and
@@ -110,8 +116,9 @@ The rest of the code depends on these keys:
 - `params` points at some probes: `EauCapteur`, `pHCapteur`, `TraitCapteur` and
   `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax` mirror the
   matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`, `AirMin/Max`,
-  `PressureMin/Max`). That cross-check is how `PROBE_TYPES` was first derived, before the
-  firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
+  `PressureMin/Max`) — **usually**: one pool's pressure probe bounds 200..2400 against a
+  `PressureMax` of 1100, so this is a hint, not an invariant. It is how `PROBE_TYPES` was
+  first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
   its pressure probe correctly — so trust `probes[].type`, not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
   `debitO` where the others carry `calib1..3`.
