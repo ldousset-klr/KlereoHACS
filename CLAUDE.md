@@ -71,14 +71,15 @@ The rest of the code depends on these keys:
 - `probes[]` — one sensor each; fields `index`, `type`, `filteredValue`, `filteredTime`.
   `type` selects the unit through `PROBE_TYPES` in `const.py`, keyed by the firmware's
   `e_TypeCapteurs` enum (0-15, the authoritative list — a type outside it logs a warning).
-  Several entries carry a label but no unit because the quantity is known and the unit is
-  not; `GENERIC` (10) and `UNKNOWN` (15) are unitless by design. A `filteredValue` of
+  Every mapped unit is confirmed against the firmware. `GENERIC` (10), `UNKNOWN` (15) and
+  `TURBIDITE` (9) carry no unit on purpose. Note `°f` on `TAC` is the French degree of
+  alkalinity, not Fahrenheit — it must never be given a temperature `device_class`. A `filteredValue` of
   `-1000` means the probe is absent or unreadable and becomes `None`.
 - `params` is what identifies a probe's role: `EauCapteur`, `pHCapteur`, `TraitCapteur`
   and `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax`
   mirror the matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`,
-  `AirMin/Max`). That cross-check is how `PROBE_TYPES` was first derived — use it again to
-  fill the entries that still have no unit.
+  `AirMin/Max`). That cross-check is how `PROBE_TYPES` was first derived, before the
+  firmware enum confirmed it.
 - `IORename[]` carries the user's own names: `ioType: 1` entries index into `outs[]`,
   `ioType: 2` into `probes[]`. This is what the README's auto-naming TODO needs; nothing
   reads it yet.

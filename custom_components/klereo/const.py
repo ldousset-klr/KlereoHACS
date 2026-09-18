@@ -15,10 +15,8 @@ PROBE_INVALID = -1000
 # probe['type'] -> (label, device_class, unit, state_class)
 #
 # Keys are the firmware's e_TypeCapteurs enum, taken from the board sources.
-# GENERIC, UNKNOWN and TURBIDITE are confirmed to carry no unit; the firmware
-# does not know the quantity for the first two. SALIN is the only entry left
-# whose unit is still unconfirmed, so it is published as a plain number rather
-# than mislabelled.
+# Every unit here is confirmed. GENERIC, UNKNOWN and TURBIDITE carry no unit on
+# purpose; for the first two the firmware does not know the quantity.
 #
 # "°f" is the French degree of alkalinity/hardness, not Fahrenheit: keep it
 # lowercase and never give it a temperature device_class, or Home Assistant
@@ -36,7 +34,7 @@ PROBE_TYPES = {
     5:  ("water temperature",      "temperature", "°C",   "measurement"),
     6:  ("filter pressure",        "pressure",    "mbar", "measurement"),
     7:  ("total alkalinity",       None,          "°f",   "measurement"),
-    8:  ("salinity",               None,          None,   "measurement"),
+    8:  ("salinity",               None,          "g/L",  "measurement"),
     9:  ("turbidity",              None,          None,   "measurement"),
     10: ("generic",                None,          None,   "measurement"),
     11: ("flow",                   None,          "m³/h", "measurement"),
