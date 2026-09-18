@@ -3,10 +3,23 @@
     "step": {
       "user": {
         "title": "Klereo Connect",
-        "description": "Connect using your Klereo credentials.",
+        "description": "Sign in with your Klereo credentials.",
         "data": {
           "username": "Username",
-          "password": "Password",
+          "password": "Password"
+        }
+      },
+      "pool": {
+        "title": "Klereo Connect",
+        "description": "Choose the pool to add.",
+        "data": {
+          "poolid": "Pool"
+        }
+      },
+      "manual": {
+        "title": "Klereo Connect",
+        "description": "The list of pools could not be retrieved. Enter the pool ID.",
+        "data": {
           "poolid": "Pool ID"
         }
       },
@@ -25,7 +38,8 @@
     },
     "abort": {
       "reauth_successful": "Re-authentication was successful.",
-      "already_configured": "This pool is already configured."
+      "already_configured": "This pool is already configured.",
+      "no_pools": "This account has no pool."
     }
   }
 }

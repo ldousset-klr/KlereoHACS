@@ -11,17 +11,16 @@ install it, then restart Home Assistant.
 ## Configuration
 
 Add the integration from *Settings > Devices & Services > Add Integration > Klereo*,
-and connect using your Klereo credentials.
+connect using your Klereo credentials, and pick your pool from the list.
 
-Get your **poolID** using browser debug 
+If that list cannot be retrieved, the setup falls back to asking for the **poolID**,
+which you can read from https://connect.klereo.fr/php/GetIndex.php
 
 # Todo
 
 API doc
 
 Expose more swimming pool infos
-
-retrieve **poolID** from https://connect.klereo.fr/php/GetIndex.php
 
 
 **Disclaimer**

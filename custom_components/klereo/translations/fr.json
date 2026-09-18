@@ -6,7 +6,20 @@
         "description": "Connectez-vous avec vos identifiants Klereo.",
         "data": {
           "username": "Identifiant",
-          "password": "Mot de passe",
+          "password": "Mot de passe"
+        }
+      },
+      "pool": {
+        "title": "Klereo Connect",
+        "description": "Choisissez la piscine à ajouter.",
+        "data": {
+          "poolid": "Piscine"
+        }
+      },
+      "manual": {
+        "title": "Klereo Connect",
+        "description": "La liste des piscines n'a pas pu être récupérée. Saisissez le numéro de piscine.",
+        "data": {
           "poolid": "Numéro de piscine"
         }
       },
@@ -25,7 +38,8 @@
     },
     "abort": {
       "reauth_successful": "Ré-authentification réussie.",
-      "already_configured": "Cette piscine est déjà configurée."
+      "already_configured": "Cette piscine est déjà configurée.",
+      "no_pools": "Ce compte ne comporte aucune piscine."
     }
   }
 }

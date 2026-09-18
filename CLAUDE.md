@@ -32,6 +32,9 @@ set in `const.py` as `KLEREOSERVER`).
 
 - `klereo_api.py` — `KlereoAPI`, the only networking layer. Plain **synchronous**
   `requests`; it must never be called directly from the event loop. Auth is lazy: every
+  `get_index()`/`list_pools()` need no poolID — that is what lets the config flow list an
+  account's pools before one is chosen, and why `poolid` is optional on the constructor.
+  Every
   authenticated call goes through `_post()`, which lazily calls `get_jwt()` (SHA-1 of the
   password POSTed to `GetJWT.php`), sends `Authorization: Bearer <jwt>`, and on a 401/403
   clears the token and replays the request **once** before `raise_for_status()`. Every
@@ -65,14 +68,18 @@ set in `const.py` as `KLEREOSERVER`).
   serial is correct here, and the registry only enforces uniqueness on `identifiers`.
   `DeviceInfo` is imported from `helpers.device_registry`, its canonical home;
   `helpers.entity` only re-exports it.
-- `config_flow.py` — UI flow collecting username/password/poolID. `_test_credentials`
-  performs a real `get_pool()` in the executor, so a bad login *and* a bad poolID are
-  caught at setup time. `async_step_reauth`/`async_step_reauth_confirm` handle the
+- `config_flow.py` — the `user` step takes credentials only and calls `list_pools()`,
+  then the `pool` step offers what the account holds, minus what is already configured.
+  A `KlereoError` there (not a `KlereoAuthError`, which is a real credential failure)
+  routes to the `manual` step, where the poolID is typed as before — GetIndex being down
+  must not block setup. `_test_credentials` still performs a real `get_pool()` in the
+  executor, so a bad login *and* a bad poolID are caught before the entry is created. `async_step_reauth`/`async_step_reauth_confirm` handle the
   `ConfigEntryAuthFailed` the coordinator raises. Form error keys (`invalid_auth`,
   `cannot_connect`) must exist in `strings.json` **and** `translations/*.json` — HA reads
   the latter at runtime, so adding a key to only one of them shows a raw slug in the UI.
   The entry's `unique_id` is the poolID, so a pool can only be configured once;
-  `async_setup_entry` backfills it on entries created before that existed.
+  `async_setup_entry` backfills it on entries created before that existed. Entry data keeps
+  the same three keys, so nothing migrates.
 - `number.py` — the filtration speed, the one out whose `status` is a speed index. It is
   created only when the pool declares `PumpMaxSpeed > 1`, so pools with no speed control
   keep just their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`. Values 0, 1
@@ -156,9 +163,17 @@ handover happens in seconds rather than at the next 300 s poll.
   meaning of the `mode` values — 0, 1, 2, 3, 4 and 8 have been seen — and a service
   registered on the switch platform.
 
+### Shape of the `GetIndex.php` payload
+
+Same `{"status": "ok", "response": [...]}` envelope, one entry per system the account can
+see, carrying `idSystem` and `poolNickname` plus a summary of the system (`probes`,
+`outsmodes`, `pin`, `compta`, `proID`, `suspended`, `access`). `list_pools()` keeps only
+the id and the name. `suspended` is deliberately *not* filtered on: a suspended system
+stays in the picker and fails later at `GetPoolDetails` with a clear message, rather than
+vanishing with no explanation.
+
 ## README TODOs worth knowing
 
-The poolID is currently found by hand via browser devtools; the intended fix is to fetch it
-from `GetIndex.php`. The README also carries a disclaimer that the integration is
+The README carries a disclaimer that the integration is
 community-driven and **not officially endorsed or supported by Klereo** — keep that framing
 in any user-facing docs.

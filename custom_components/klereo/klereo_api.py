@@ -22,7 +22,7 @@ AUTH_HINTS = ("jwt", "token", "auth", "login", "expir", "credential")
 
 
 class KlereoAPI:
-    def __init__(self, username, password, poolid):
+    def __init__(self, username, password, poolid=None):
         self.username = username
         self.password = password
         self.poolid = poolid
@@ -125,9 +125,29 @@ class KlereoAPI:
         return data['response']
 
     def get_index(self):
+        """Every system this account can see. Needs no poolID."""
         index = self._unwrap(self._post("GetIndex.php"), "GetIndex.php")
-        LOGGER.info(f"Successfully obtained GetIndex: {index}")
+        LOGGER.info("GetIndex returned %s systems", len(index) if index else 0)
         return index
+
+    def list_pools(self):
+        """Reduce GetIndex to [(idSystem, name)], skipping anything unusable.
+
+        GetIndex carries a lot more (probes, outsmodes, pin, compta); only what
+        the config flow needs is kept. `suspended` is passed through untouched:
+        a suspended system is still listed, and fails later at GetPoolDetails
+        with a clear message rather than silently disappearing from the picker.
+        """
+        pools = []
+        for system in self.get_index() or []:
+            if not isinstance(system, dict):
+                continue
+            pool_id = system.get('idSystem')
+            if pool_id is None:
+                continue
+            name = (system.get('poolNickname') or '').strip()
+            pools.append((pool_id, name or f"Klereo pool #{pool_id}"))
+        return pools
 
     def get_pool(self):
         LOGGER.info(f"GetPoolDetails #{self.poolid}")
