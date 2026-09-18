@@ -67,3 +67,8 @@ OUT_STATUS_UNKNOWN = 2
 # other. The codeowner confirmed it is not the firmware's e_OutTypes; what it
 # actually encodes is still to be determined, so do not build on it.
 FILTRATION_OUT_INDEX = 1
+
+# Highest speed index SetOut accepts on the filtration output. A pool advertises
+# its own ceiling in PumpMaxSpeed (1 and 3 seen), which is what the speed entity
+# uses; this is only the protocol limit and the fallback.
+MAX_PUMP_SPEED = 7

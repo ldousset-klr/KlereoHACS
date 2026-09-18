@@ -47,7 +47,8 @@ set in `const.py` as `KLEREOSERVER`).
   `hass.async_add_executor_job` (this is the bridge between HA's async world and the
   blocking `requests` calls), and drives a `DataUpdateCoordinator` polling every
   `UPDATE_INTERVAL` (300 s). Coordinator + api are stashed in
-  `hass.data[DOMAIN][entry.entry_id]` for the platforms. `PLATFORMS = ["sensor", "switch"]`.
+  `hass.data[DOMAIN][entry.entry_id]` for the platforms.
+  `PLATFORMS = ["sensor", "switch", "number"]`.
   The update callback maps `KlereoAuthError` to `ConfigEntryAuthFailed` (triggering the
   reauth flow) and `KlereoError`/`RequestException` to `UpdateFailed`.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
@@ -65,6 +66,11 @@ set in `const.py` as `KLEREOSERVER`).
   the latter at runtime, so adding a key to only one of them shows a raw slug in the UI.
   The entry's `unique_id` is the poolID, so a pool can only be configured once;
   `async_setup_entry` backfills it on entries created before that existed.
+- `number.py` — the filtration speed, the one out whose `status` is a speed index. It is
+  created only when the pool declares `PumpMaxSpeed > 1`, so single-speed pools keep just
+  their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`, falling back to the
+  protocol's 7 when the payload has no usable value. The switch over the same out stays,
+  unchanged, so existing automations keep working — turning it on sends speed 1.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
   re-scan `coordinator.data` on every property read rather than caching. Each entity keeps
