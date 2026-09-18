@@ -2,7 +2,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, PROBE_INVALID, PROBE_TYPES, PROBE_TYPE_DEFAULT
-from .entity import klereo_device_info
+from .entity import IO_TYPE_PROBE, klereo_device_info, klereo_io_names
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -16,21 +16,26 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     probes = pool_data["probes"]
     poolid = pool_data['idSystem']
     device_info = klereo_device_info(pool_data, poolid)
+    names = klereo_io_names(pool_data, IO_TYPE_PROBE)
     # Add sensors
     sensors = []
     for probe in probes:
         LOGGER.info(f"Adding sensor for #{poolid}: {probe}")
-        sensors.append(KlereoSensor(coordinator,probe,poolid,device_info))
+        sensors.append(KlereoSensor(coordinator,probe,poolid,device_info,
+                                    names.get(probe['index'])))
     #add sensor enitities
     async_add_entities(sensors, update_before_add=True)
 
 
 class KlereoSensor(CoordinatorEntity, SensorEntity):
 
-    def __init__(self, coordinator, probe, poolid, device_info):
+    def __init__(self, coordinator, probe, poolid, device_info, klereo_name=None):
         super().__init__(coordinator)
         self._attr_device_info = device_info
-        self._name = f"klereo{poolid}probe{probe['index']}"
+        # _key backs unique_id and must never change: it is what ties an entity
+        # to its history. The displayed name is free to follow Klereo.
+        self._key = f"klereo{poolid}probe{probe['index']}"
+        self._name = klereo_name or self._key
         self._index = probe['index']
         self._type = probe['type']
         self._poolid = poolid
@@ -62,7 +67,7 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def unique_id(self):
-        return f"id_{self._name}"
+        return f"id_{self._key}"
 
     @property
     def native_value(self):

@@ -67,7 +67,11 @@ set in `const.py` as `KLEREOSERVER`).
   `async_setup_entry` backfills it on entries created before that existed.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
-  re-scan `coordinator.data` on every property read rather than caching. `KlereoSensor`
+  re-scan `coordinator.data` on every property read rather than caching. Each entity keeps
+  `_key` (`klereo<poolid>probe<index>`) separate from `_name`: **`unique_id` is built from
+  `_key` and must never follow the name**, or renaming a probe in Klereo would orphan the
+  entity and lose its history. `_name` is the `IORename` label when there is one, else
+  `_key`. `KlereoSensor`
   resolves its unit once in `__init__` and exposes `native_value`; `device_class` and
   `state_class` are kept as plain strings in `const.py` so no enum member missing from an
   older Home Assistant can break the import.
@@ -94,10 +98,11 @@ The rest of the code depends on these keys:
   `PressionCapteur: -1` while carrying a working type 6 probe, so trust `probes[].type`,
   not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
   `debitO` where the others carry `calib1..3`.
-- `IORename[]` carries the user's own names: `ioType: 1` entries index into `outs[]`,
-  `ioType: 2` into `probes[]`. `ioType: 3` and `4` were seen on the *same* `ioIndex` as a
-  cover probe, naming its two end states ("Ouverte"/"Fermée"), so they label values rather
-  than entities. This is what the README's auto-naming TODO needs; nothing reads it yet.
+- `IORename[]` carries the user's own names, read by `klereo_io_names()`: `ioType: 1`
+  entries index into `outs[]`, `ioType: 2` into `probes[]`. `ioType: 3` and `4` were seen
+  on the *same* `ioIndex` as a cover probe, naming its two end states ("Ouverte"/"Fermée"),
+  so **always filter on `ioType` first** — matching `ioIndex` alone would rename that probe
+  "Ouverte". Entries exist for indexes that have no probe or out, and are simply unused.
 - `outs[]` — one switch each; fields `index`, `type`, `mode`, `status`, `realStatus`,
   `updateTime`. **`status` is not a boolean, and its meaning depends on the output**: on
   the filtration it is a variable-speed index, 0 (stopped) to 7; on every other output it
@@ -122,8 +127,6 @@ handover happens in seconds rather than at the next 300 s poll.
 
 - `KlereoOut.async_set_mode` / `KlereoAPI.set_device_mode` are stubs that only log, and
   `async_set_mode` is not registered as a service, so nothing can reach it.
-- Entity names are the raw `klereo<id>probe<n>` scheme; the README lists auto-naming from
-  the Klereo default names as a TODO.
 
 ## README TODOs worth knowing
 

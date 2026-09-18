@@ -25,3 +25,22 @@ def klereo_device_info(pool_data, poolid) -> DeviceInfo:
     if pod_serial:
         info["serial_number"] = str(pod_serial)
     return info
+
+
+# IORename[].ioType. 3 and 4 were seen naming the two end states of a cover
+# probe, on the same ioIndex as that probe, so matching on ioIndex alone would
+# rename the probe itself "Ouverte". Always filter on ioType first.
+IO_TYPE_OUT = 1
+IO_TYPE_PROBE = 2
+
+
+def klereo_io_names(pool_data, io_type):
+    """Map ioIndex -> the name the user gave that out or probe in Klereo."""
+    names = {}
+    for entry in pool_data.get("IORename") or []:
+        if entry.get("ioType") != io_type:
+            continue
+        name = (entry.get("name") or "").strip()
+        if name:
+            names[entry.get("ioIndex")] = name
+    return names

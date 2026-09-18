@@ -9,7 +9,7 @@ from .const import (
     OUT_STATUS_ON,
     OUT_STATUS_UNKNOWN,
 )
-from .entity import klereo_device_info
+from .entity import IO_TYPE_OUT, klereo_device_info, klereo_io_names
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -24,22 +24,27 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     outs = pool_data["outs"]
     poolid = pool_data['idSystem']
     device_info = klereo_device_info(pool_data, poolid)
+    names = klereo_io_names(pool_data, IO_TYPE_OUT)
     # Add switches
     switches = []
     for out in outs:
         LOGGER.info(f"Adding out for #{poolid}: {out}")
-        switches.append(KlereoOut(api,coordinator,out,poolid,device_info))
+        switches.append(KlereoOut(api,coordinator,out,poolid,device_info,
+                                  names.get(out['index'])))
     #add switch enitities
     async_add_entities(switches, update_before_add=True)
 
 
 class KlereoOut(CoordinatorEntity, SwitchEntity):
 
-    def __init__(self, api, coordinator, out, poolid, device_info):
+    def __init__(self, api, coordinator, out, poolid, device_info, klereo_name=None):
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._api = api
-        self._name = f"klereo{poolid}out{out['index']}"
+        # _key backs unique_id and must never change: it is what ties an entity
+        # to its history. The displayed name is free to follow Klereo.
+        self._key = f"klereo{poolid}out{out['index']}"
+        self._name = klereo_name or self._key
         self._index = out['index']
         self._type = out['type']
         self._mode = out['mode']
@@ -84,7 +89,7 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
 
     @property
     def unique_id(self):
-        return f"id_{self._name}"
+        return f"id_{self._key}"
 
     @property
     def extra_state_attributes(self):
