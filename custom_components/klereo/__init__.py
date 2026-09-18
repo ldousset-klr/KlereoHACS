@@ -45,6 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = DataUpdateCoordinator(
         hass,
         LOGGER,
+        config_entry=entry,
         name="klereo_data_coordinator",
         update_method=async_update_data,
         update_interval=timedelta(seconds=UPDATE_INTERVAL),

@@ -21,8 +21,9 @@ and read the logs. Everything logs through `logging.getLogger(__name__)` at INFO
 `custom_components.klereo` logger to `debug` in `configuration.yaml` when debugging.
 
 Bump `version` in `manifest.json` when publishing a release that HACS should pick up.
-`hacs.json` declares the minimum Home Assistant version (2022.8.0, set by the use of
-`async_forward_entry_setups`); raise it if newer HA APIs are adopted.
+`hacs.json` declares the minimum Home Assistant version (2024.11.0, set by the
+`config_entry` argument the coordinator is built with — it was added in that release and
+raises `TypeError` on 2024.10 and earlier); raise it if newer HA APIs are adopted.
 
 ## Architecture
 
@@ -51,9 +52,8 @@ set in `const.py` as `KLEREOSERVER`).
   reauth flow) and `KlereoError`/`RequestException` to `UpdateFailed`.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
   pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
-  Both platforms build it once in `async_setup_entry` and pass it to each entity. It only
-  uses `DeviceInfo` keys available in HA 2021.12; `serial_number` (`podSerial`) would need
-  2023.8, so bump `hacs.json` before adding it.
+  Both platforms build it once in `async_setup_entry` and pass it to each entity.
+  `serial_number` (`podSerial`) is simply not exposed yet — the declared minimum covers it.
 - `config_flow.py` — UI flow collecting username/password/poolID. `_test_credentials`
   performs a real `get_pool()` in the executor, so a bad login *and* a bad poolID are
   caught at setup time. `async_step_reauth`/`async_step_reauth_confirm` handle the

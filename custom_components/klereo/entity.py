@@ -8,9 +8,8 @@ from .const import DOMAIN
 def klereo_device_info(pool_data, poolid) -> DeviceInfo:
     """Build the device all entities of this pool belong to.
 
-    Only keys supported since Home Assistant 2021.12 are used, to stay within
-    the minimum version hacs.json declares; `serial_number` (podSerial) would
-    need 2023.8 or later.
+    `serial_number` (podSerial) is simply not exposed yet; the minimum version
+    hacs.json declares now covers it.
     """
     info = DeviceInfo(
         identifiers={(DOMAIN, str(poolid))},
