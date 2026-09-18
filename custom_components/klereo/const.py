@@ -15,10 +15,14 @@ PROBE_INVALID = -1000
 # probe['type'] -> (label, device_class, unit, state_class)
 #
 # Keys are the firmware's e_TypeCapteurs enum, taken from the board sources.
-# The entries without a unit (TAC, salinity, turbidity, cover) have a known
-# quantity but no confirmed unit, so they are published as plain numbers rather
-# than mislabelled. GENERIC and UNKNOWN are unitless by design: the firmware
-# itself does not know the quantity.
+# GENERIC, UNKNOWN and TURBIDITE are confirmed to carry no unit; the firmware
+# does not know the quantity for the first two. SALIN is the only entry left
+# whose unit is still unconfirmed, so it is published as a plain number rather
+# than mislabelled.
+#
+# "°f" is the French degree of alkalinity/hardness, not Fahrenheit: keep it
+# lowercase and never give it a temperature device_class, or Home Assistant
+# would convert it.
 #
 # No device_class is set for the percentage and flow entries: Home Assistant has
 # no generic percentage class, and volume_flow_rate does not exist on the older
@@ -31,13 +35,13 @@ PROBE_TYPES = {
     4:  ("redox",                  None,          "mV",   "measurement"),
     5:  ("water temperature",      "temperature", "°C",   "measurement"),
     6:  ("filter pressure",        "pressure",    "mbar", "measurement"),
-    7:  ("total alkalinity",       None,          None,   "measurement"),
+    7:  ("total alkalinity",       None,          "°f",   "measurement"),
     8:  ("salinity",               None,          None,   "measurement"),
     9:  ("turbidity",              None,          None,   "measurement"),
     10: ("generic",                None,          None,   "measurement"),
     11: ("flow",                   None,          "m³/h", "measurement"),
     12: ("canister level",         None,          "%",    "measurement"),
-    13: ("cover",                  None,          None,   "measurement"),
+    13: ("cover",                  None,          "%",    "measurement"),
     14: ("chlorine",               None,          "mg/L", "measurement"),
     15: ("unknown",                None,          None,   "measurement"),
 }
