@@ -96,13 +96,18 @@ The rest of the code depends on these keys:
   cover probe, naming its two end states ("Ouverte"/"Fermée"), so they label values rather
   than entities. This is what the README's auto-naming TODO needs; nothing reads it yet.
 - `outs[]` — one switch each; fields `index`, `type`, `mode`, `status`, `realStatus`,
-  `updateTime`. **`status` is not a boolean**: a variable-speed filtration pump reports a
-  speed index there (a running pump was seen with `status: 2`, its `PmpRunningSpeed`
-  matching `VF2Map`), so `is_on` tests `!= 0`. `mode` and the out `type` vary between pools
-  (types other than 0, modes up to 8 observed) and are exposed as attributes only.
+  `updateTime`. **`status` is not a boolean, and its meaning depends on the output**: on
+  the filtration it is a variable-speed index, 0 (stopped) to 7; on every other output it
+  is `0` off, `1` on, `2` *unknown*. So `is_on` returns `None` on a 2 it did not read from
+  the filtration — reporting it as on or off would both be wrong. Which index is the
+  filtration is the weak point: `FILTRATION_OUT_INDEX` is 1, seen on both captured pools
+  (its `totalTime` tracks `params.Filtration_TotalTime`), but that is not proven to be
+  fixed by the firmware. `mode` and the out `type` vary between pools (types other than 0,
+  modes up to 8 observed) and are exposed as attributes only.
 
 Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode: 2` (manual) and
-`newState` 0/1. Because a write is not reflected in coordinator data until the next poll,
+`newState`, which takes the same encoding as `status` above — so turning the filtration on
+sends speed 1, and speeds 2-7 are reachable but not exposed by a plain switch. Because a write is not reflected in coordinator data until the next poll,
 `KlereoOut` keeps an optimistic `self._optimistic_state` (True/False/None) that `is_on`
 prefers over `out['status']`. It is cleared in `_handle_coordinator_update()`, so fresh
 server data always wins; a write also fires `coordinator.async_request_refresh()` so that

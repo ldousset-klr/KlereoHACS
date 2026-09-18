@@ -48,3 +48,17 @@ PROBE_TYPES = {
     15: ("unknown",                None,          None,   "measurement"),
 }
 PROBE_TYPE_DEFAULT = ("unsupported", None, None, "measurement")
+
+# outs[].status, and the newState SetOut takes.
+#
+# On the filtration output the field is a variable-speed index, 0 (stopped) to 7.
+# On every other output it is a state: 0 off, 1 on, 2 unknown.
+OUT_STATUS_OFF = 0
+OUT_STATUS_ON = 1
+OUT_STATUS_UNKNOWN = 2
+
+# Which out carries the filtration, and so which one reads as a speed index.
+# Both captured pools use index 1, whose totalTime tracks
+# params.Filtration_TotalTime, but nothing proves the firmware always fixes it
+# there — confirm before relying on it.
+FILTRATION_OUT_INDEX = 1

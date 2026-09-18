@@ -2,7 +2,13 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    FILTRATION_OUT_INDEX,
+    OUT_STATUS_OFF,
+    OUT_STATUS_ON,
+    OUT_STATUS_UNKNOWN,
+)
 from .entity import klereo_device_info
 
 import logging
@@ -60,11 +66,15 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         outs = self.coordinator.data['outs']
         for out in outs:
             if out['index'] == self._index:
-                LOGGER.debug(f"{self._name}={out['status']}")
-                # status is not a boolean: a variable-speed filtration pump
-                # reports its speed index here (2 seen on a running pump whose
-                # PmpRunningSpeed matched VF2Map). Anything but 0 is on.
-                return out['status'] != 0
+                status = out['status']
+                LOGGER.debug(f"{self._name}={status}")
+                if self._index == FILTRATION_OUT_INDEX:
+                    # Speed index 0-7: any speed means the pump runs.
+                    return status != OUT_STATUS_OFF
+                if status == OUT_STATUS_UNKNOWN:
+                    # The controller does not know: report unknown, not off.
+                    return None
+                return status == OUT_STATUS_ON
         return None
 
     @property
