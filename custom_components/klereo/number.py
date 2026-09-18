@@ -23,14 +23,17 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         return
 
     max_speed = pool_data.get('PumpMaxSpeed')
-    if not isinstance(max_speed, int) or max_speed < 1:
+    if not isinstance(max_speed, int):
+        # Only a missing or malformed value is a reason to guess; 0 is a real
+        # answer, meaning the pool drives no pump speed.
         LOGGER.warning("Pool #%s declares no usable PumpMaxSpeed (%r), allowing %s",
                        poolid, max_speed, MAX_PUMP_SPEED)
         max_speed = MAX_PUMP_SPEED
     max_speed = min(max_speed, MAX_PUMP_SPEED)
     if max_speed < 2:
-        # Single-speed pump: the switch already says all there is to say.
-        LOGGER.info("Pool #%s has a single-speed pump, no speed entity", poolid)
+        # 0 = no speed control, 1 = single speed: the switch says it all.
+        LOGGER.info("Pool #%s drives no pump speed (PumpMaxSpeed=%s), no speed entity",
+                    poolid, max_speed)
         return
 
     LOGGER.info("Adding filtration speed 0-%s for #%s", max_speed, poolid)

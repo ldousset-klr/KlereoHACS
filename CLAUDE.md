@@ -70,9 +70,10 @@ set in `const.py` as `KLEREOSERVER`).
   The entry's `unique_id` is the poolID, so a pool can only be configured once;
   `async_setup_entry` backfills it on entries created before that existed.
 - `number.py` — the filtration speed, the one out whose `status` is a speed index. It is
-  created only when the pool declares `PumpMaxSpeed > 1`, so single-speed pools keep just
-  their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`, falling back to the
-  protocol's 7 when the payload has no usable value. The switch over the same out stays,
+  created only when the pool declares `PumpMaxSpeed > 1`, so pools with no speed control
+  keep just their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`. Values 0, 1
+  and 3 have been seen and **0 is a real answer, not a missing one** — only an absent or
+  non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
@@ -88,6 +89,9 @@ set in `const.py` as `KLEREOSERVER`).
 ### Shape of the `GetPoolDetails.php` payload
 
 `api.get_pool()` returns `response[0]`, and that dict is what `coordinator.data` holds.
+It varies a lot between installations — a controller may drive a boiler rather than a
+pool, with `outs: []`, no `ExtraParams`, a probe reading -16 °C (a freezer) and a generic
+probe the owner named "Luminosité (lux)". Assume every section can be empty or absent.
 The rest of the code depends on these keys:
 
 - `idSystem` — pool id, used in entity naming (`klereo<poolid>probe<index>`, `klereo<poolid>out<index>`).
@@ -104,8 +108,8 @@ The rest of the code depends on these keys:
   matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`, `AirMin/Max`,
   `PressureMin/Max`). That cross-check is how `PROBE_TYPES` was first derived, before the
   firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
-  `PressionCapteur: -1` while carrying a working type 6 probe, so trust `probes[].type`,
-  not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
+  `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
+  its pressure probe correctly — so trust `probes[].type`, not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
   `debitO` where the others carry `calib1..3`.
 - `IORename[]` carries the user's own names, read by `klereo_io_names()`: `ioType: 1`
   entries index into `outs[]`, `ioType: 2` into `probes[]`. `ioType: 3` and `4` were seen

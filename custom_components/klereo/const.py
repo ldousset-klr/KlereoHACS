@@ -69,6 +69,7 @@ OUT_STATUS_UNKNOWN = 2
 FILTRATION_OUT_INDEX = 1
 
 # Highest speed index SetOut accepts on the filtration output. A pool advertises
-# its own ceiling in PumpMaxSpeed (1 and 3 seen), which is what the speed entity
-# uses; this is only the protocol limit and the fallback.
+# its own ceiling in PumpMaxSpeed (0, 1 and 3 seen, 0 meaning no speed control),
+# which is what the speed entity uses; this is only the protocol limit, and the
+# fallback for a payload that omits the field entirely.
 MAX_PUMP_SPEED = 7
