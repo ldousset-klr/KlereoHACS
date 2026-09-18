@@ -103,7 +103,13 @@ credential disclosure, not just a connection failure.
   `_key` (`klereo<poolid>probe<index>`) separate from `_name`: **`unique_id` is built from
   `_key` and must never follow the name**, or renaming a probe in Klereo would orphan the
   entity and lose its history. `_name` is the `IORename` label when there is one, else
-  `_key`. `KlereoSensor`
+  `_key`. A sensor falls back once more before the key: `PROBE_LABELS` in `const.py`
+  gives the controller's own name for each probe **index** (0-31). That table is keyed on
+  the index, not the type, and the two disagree on a few installs — a type 10 generic at
+  index 20 whose label reads "Température air 3" — so it is only ever a fallback, never
+  applied over an `IORename` name. On the captured pools every mismatched slot carried a
+  user name, so the conflict stays hidden. Outs have no such table and keep their key.
+  `KlereoSensor`
   resolves its unit once in `__init__` and exposes `native_value`; `device_class` and
   `state_class` are kept as plain strings in `const.py` so no enum member missing from an
   older Home Assistant can break the import.

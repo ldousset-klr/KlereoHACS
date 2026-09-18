@@ -78,3 +78,48 @@ FILTRATION_OUT_INDEX = 1
 # which is what the speed entity uses; this is only the protocol limit, and the
 # fallback for a payload that omits the field entirely.
 MAX_PUMP_SPEED = 7
+
+# probes[].index -> the name the controller gives that slot, from the firmware.
+#
+# Keyed on the probe INDEX, not its type: the two disagree on a few installs
+# (a type 10 generic sitting at index 20, whose label reads "Température air 3"),
+# so this is only a fallback, applied after IORename and never over it. On the
+# captured pools every such slot carried a user name, so the mismatch stays
+# hidden; a probe with an odd index and no IORename entry may be mislabelled.
+#
+# French on purpose: these are the controller's own wording, and the IORename
+# names they sit beside are French too.
+PROBE_LABELS = {
+    0: "Température coffret",
+    1: "Température air",
+    2: "Température eau gen1",
+    3: "pH gen1",
+    4: "Redox gen1",
+    5: "Pression gen1",
+    6: "Niveau bidon pH",
+    7: "Niveau bidon désinfectant",
+    8: "Couverture",
+    9: "pH Gen2",
+    10: "Redox gen2",
+    11: "Chlore gen2",
+    12: "Température eau gen2",
+    13: "Pression gen2-A",
+    14: "Pression gen2-B",
+    15: "Debit1",
+    16: "Température Eau",
+    17: "Capteur pH",
+    18: "Capteur Redox",
+    19: "Température air 2",
+    20: "Température air 3",
+    21: "Pression",
+    22: "Chlore",
+    23: "Bidon Floculant",
+    24: "Debit2",
+    25: "Température air 4",
+    26: "Température air 5",
+    27: "Température air 6",
+    28: "Température air 7",
+    29: "Température air 8",
+    30: "Température air 9",
+    31: "Température air 10",
+}

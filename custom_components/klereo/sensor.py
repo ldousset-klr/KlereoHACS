@@ -1,7 +1,8 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, PROBE_INVALID, PROBE_TYPES, PROBE_TYPE_DEFAULT
+from .const import (DOMAIN, PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
+                    PROBE_TYPE_DEFAULT)
 from .entity import IO_TYPE_PROBE, klereo_device_info, klereo_io_names
 
 import logging
@@ -35,7 +36,9 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
         # _key backs unique_id and must never change: it is what ties an entity
         # to its history. The displayed name is free to follow Klereo.
         self._key = f"klereo{poolid}probe{probe['index']}"
-        self._name = klereo_name or self._key
+        # The user's own name wins; the controller's name for that slot comes
+        # next; the raw key is the last resort.
+        self._name = klereo_name or PROBE_LABELS.get(probe['index']) or self._key
         self._index = probe['index']
         self._type = probe['type']
         self._poolid = poolid
