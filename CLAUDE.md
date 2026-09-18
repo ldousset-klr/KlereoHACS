@@ -83,15 +83,23 @@ The rest of the code depends on these keys:
   firmware does not distinguish; its `°f` is the French degree of alkalinity/hardness, not
   Fahrenheit, and must never be given a temperature `device_class`. A `filteredValue` of
   `-1000` means the probe is absent or unreadable and becomes `None`.
-- `params` is what identifies a probe's role: `EauCapteur`, `pHCapteur`, `TraitCapteur`
-  and `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax`
-  mirror the matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`,
-  `AirMin/Max`). That cross-check is how `PROBE_TYPES` was first derived, before the
-  firmware enum confirmed it.
+- `params` points at some probes: `EauCapteur`, `pHCapteur`, `TraitCapteur` and
+  `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax` mirror the
+  matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`, `AirMin/Max`,
+  `PressureMin/Max`). That cross-check is how `PROBE_TYPES` was first derived, before the
+  firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
+  `PressionCapteur: -1` while carrying a working type 6 probe, so trust `probes[].type`,
+  not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
+  `debitO` where the others carry `calib1..3`.
 - `IORename[]` carries the user's own names: `ioType: 1` entries index into `outs[]`,
-  `ioType: 2` into `probes[]`. This is what the README's auto-naming TODO needs; nothing
-  reads it yet.
-- `outs[]` — one switch each; fields `index`, `type`, `mode`, `status`, `realStatus`, `updateTime`.
+  `ioType: 2` into `probes[]`. `ioType: 3` and `4` were seen on the *same* `ioIndex` as a
+  cover probe, naming its two end states ("Ouverte"/"Fermée"), so they label values rather
+  than entities. This is what the README's auto-naming TODO needs; nothing reads it yet.
+- `outs[]` — one switch each; fields `index`, `type`, `mode`, `status`, `realStatus`,
+  `updateTime`. **`status` is not a boolean**: a variable-speed filtration pump reports a
+  speed index there (a running pump was seen with `status: 2`, its `PmpRunningSpeed`
+  matching `VF2Map`), so `is_on` tests `!= 0`. `mode` and the out `type` vary between pools
+  (types other than 0, modes up to 8 observed) and are exposed as attributes only.
 
 Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode: 2` (manual) and
 `newState` 0/1. Because a write is not reflected in coordinator data until the next poll,

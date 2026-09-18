@@ -61,7 +61,10 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         for out in outs:
             if out['index'] == self._index:
                 LOGGER.debug(f"{self._name}={out['status']}")
-                return out['status']==1
+                # status is not a boolean: a variable-speed filtration pump
+                # reports its speed index here (2 seen on a running pump whose
+                # PmpRunningSpeed matched VF2Map). Anything but 0 is on.
+                return out['status'] != 0
         return None
 
     @property
