@@ -32,12 +32,16 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
         self._type = probe['type']
         self._poolid = poolid
         if self._type not in PROBE_TYPES:
+            # Outside e_TypeCapteurs: the firmware gained a type this table
+            # predates. GENERIC and UNKNOWN are expected and do not warn.
             LOGGER.warning(
-                "Unknown Klereo probe type %s on probe %s of pool #%s; "
-                "publishing it without a unit",
+                "Klereo probe type %s on probe %s of pool #%s is outside the known "
+                "sensor types; publishing it without a unit",
                 self._type, self._index, poolid,
             )
-        device_class, unit, state_class = PROBE_TYPES.get(self._type, PROBE_TYPE_DEFAULT)
+        self._label, device_class, unit, state_class = PROBE_TYPES.get(
+            self._type, PROBE_TYPE_DEFAULT
+        )
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = unit
         self._attr_state_class = state_class
@@ -81,5 +85,6 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
             return None
         return {
             'Time': probe['filteredTime'],
-            'Type': int(probe['type'])
+            'Type': int(probe['type']),
+            'TypeName': self._label
         }

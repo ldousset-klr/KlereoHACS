@@ -69,14 +69,16 @@ The rest of the code depends on these keys:
 
 - `idSystem` — pool id, used in entity naming (`klereo<poolid>probe<index>`, `klereo<poolid>out<index>`).
 - `probes[]` — one sensor each; fields `index`, `type`, `filteredValue`, `filteredTime`.
-  `type` selects the unit through `PROBE_TYPES` in `const.py` (1 air °C, 3 pH, 4 redox mV,
-  5 water °C); unmapped types are published unitless rather than mislabelled. A
-  `filteredValue` of `-1000` means the probe is absent or unreadable and becomes `None`.
+  `type` selects the unit through `PROBE_TYPES` in `const.py`, keyed by the firmware's
+  `e_TypeCapteurs` enum (0-15, the authoritative list — a type outside it logs a warning).
+  Several entries carry a label but no unit because the quantity is known and the unit is
+  not; `GENERIC` (10) and `UNKNOWN` (15) are unitless by design. A `filteredValue` of
+  `-1000` means the probe is absent or unreadable and becomes `None`.
 - `params` is what identifies a probe's role: `EauCapteur`, `pHCapteur`, `TraitCapteur`
   and `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax`
   mirror the matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`,
-  `AirMin/Max`). That cross-check is how the `PROBE_TYPES` table was derived — use it
-  again to identify the still-unknown types 10 and 12.
+  `AirMin/Max`). That cross-check is how the units marked `(*)` in `PROBE_TYPES` were
+  inferred — use it again to confirm them, and to fill the entries that still have none.
 - `IORename[]` carries the user's own names: `ioType: 1` entries index into `outs[]`,
   `ioType: 2` into `probes[]`. This is what the README's auto-naming TODO needs; nothing
   reads it yet.
