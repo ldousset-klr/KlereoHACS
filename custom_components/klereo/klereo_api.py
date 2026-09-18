@@ -1,7 +1,7 @@
 import logging
 import requests
 import hashlib
-from .const import KLEREOSERVER, HA_VERSION, HTTP_TIMEOUT
+from .const import DEF_SERVER, KLEREO_PATH, HA_VERSION, HTTP_TIMEOUT
 
 LOGGER = logging.getLogger(__name__)
 
@@ -22,15 +22,25 @@ AUTH_HINTS = ("jwt", "token", "auth", "login", "expir", "credential")
 
 
 class KlereoAPI:
-    def __init__(self, username, password, poolid=None):
+    def __init__(self, username, password, poolid=None, server=None):
         self.username = username
         self.password = password
         self.poolid = poolid
-        self.base_url = KLEREOSERVER
+        self.base_url = self._base_url(server)
         self.jwt = None
         # One session for the whole integration: without it every call to the
         # five endpoints paid for a fresh TLS handshake.
         self.session = requests.Session()
+
+    @staticmethod
+    def _base_url(server):
+        """Normalise the configured server into the endpoints' base URL."""
+        base = (server or DEF_SERVER).strip().rstrip("/")
+        if not base:
+            base = DEF_SERVER
+        if not base.endswith(KLEREO_PATH):
+            base += KLEREO_PATH
+        return base
 
     def hash_password(self):
         return hashlib.sha1(self.password.encode()).hexdigest()

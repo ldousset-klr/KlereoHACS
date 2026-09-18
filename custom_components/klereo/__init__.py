@@ -39,7 +39,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Initialize the API
     LOGGER.info(f"Initializing {DOMAIN} for pool #{entry.data.get('poolid')}...")
-    api = KlereoAPI(entry.data.get('username'), entry.data.get('password'), entry.data.get('poolid'))
+    api = KlereoAPI(entry.data.get('username'), entry.data.get('password'),
+                    entry.data.get('poolid'), entry.data.get('server'))
     
     # Create a DataUpdateCoordinator
     coordinator = DataUpdateCoordinator(

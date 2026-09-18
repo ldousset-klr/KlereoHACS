@@ -27,8 +27,13 @@ raises `TypeError` on 2024.10 and earlier); raise it if newer HA APIs are adopte
 
 ## Architecture
 
-Cloud polling against the Klereo Connect PHP endpoints (`https://connect.klereo.fr/php`,
-set in `const.py` as `KLEREOSERVER`).
+Cloud polling against the Klereo Connect PHP endpoints. The server is per config entry:
+the `user` step offers `DEF_SERVER` (`https://connect.klereo.fr`) and accepts any other,
+so a dev or staging server can be pointed at. `KlereoAPI._base_url()` trims it and appends
+`KLEREO_PATH` (`/php`), tolerating a trailing slash or an already-typed `/php`. An entry
+created before this existed has no `server` key and falls back to production, so nothing
+migrates. **The credentials are sent wherever this points**, so treat a typo there as a
+credential disclosure, not just a connection failure.
 
 - `klereo_api.py` — `KlereoAPI`, the only networking layer. Plain **synchronous**
   `requests`; it must never be called directly from the event loop. Auth is lazy: every
@@ -80,6 +85,9 @@ set in `const.py` as `KLEREOSERVER`).
   `ConfigEntryAuthFailed` the coordinator raises. Form error keys (`invalid_auth`,
   `cannot_connect`) must exist in `strings.json` **and** `translations/*.json` — HA reads
   the latter at runtime, so adding a key to only one of them shows a raw slug in the UI.
+  The `user` step also takes the server, carried into the entry data and used by
+  `list_pools()`, `_test_credentials()` and the coordinator alike, so a dev server is
+  exercised end to end rather than only at setup.
   The entry's `unique_id` is the poolID, so a pool can only be configured once;
   `async_setup_entry` backfills it on entries created before that existed. Entry data keeps
   the same three keys, so nothing migrates.

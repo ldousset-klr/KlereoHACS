@@ -7,7 +7,8 @@ from homeassistant.helpers.selector import (
 )
 from requests import RequestException
 
-from .const import DOMAIN,CONF_USERNAME,CONF_PASSWORD,CONF_POOLID,DEF_POOLID
+from .const import (DOMAIN,CONF_USERNAME,CONF_PASSWORD,CONF_POOLID,CONF_SERVER,
+                    DEF_POOLID,DEF_SERVER)
 from .klereo_api import KlereoAPI, KlereoAuthError, KlereoError
 
 import logging
@@ -20,6 +21,7 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._reauth_entry = None
         self._username = None
         self._password = None
+        self._server = None
         self._pools = []
 
     async def async_step_user(self, user_input=None):
@@ -29,6 +31,7 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._username = user_input[CONF_USERNAME]
             self._password = user_input[CONF_PASSWORD]
+            self._server = user_input.get(CONF_SERVER) or DEF_SERVER
             try:
                 self._pools = await self._list_pools()
             except KlereoAuthError as err:
@@ -47,6 +50,7 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = {
             vol.Required(CONF_USERNAME): str,
             vol.Required(CONF_PASSWORD): str,
+            vol.Optional(CONF_SERVER, default=DEF_SERVER): str,
         }
         return self.async_show_form(
             step_id="user",
@@ -151,19 +155,21 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return {
             CONF_USERNAME: self._username,
             CONF_PASSWORD: self._password,
+            CONF_SERVER: self._server,
             CONF_POOLID: poolid,
         }
 
     async def _list_pools(self):
         """[(idSystem, name)] for the credentials being entered."""
-        api = KlereoAPI(self._username, self._password)
+        api = KlereoAPI(self._username, self._password, server=self._server)
         return await self.hass.async_add_executor_job(api.list_pools)
 
     async def _validate(self, data):
         """Return the form errors for these credentials, empty if they work."""
         try:
             await self._test_credentials(
-                data[CONF_USERNAME], data[CONF_PASSWORD], data[CONF_POOLID]
+                data[CONF_USERNAME], data[CONF_PASSWORD], data[CONF_POOLID],
+                data.get(CONF_SERVER),
             )
         except KlereoAuthError as err:
             LOGGER.warning(f"Klereo rejected the credentials: {err}")
@@ -173,8 +179,8 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return {"base": "cannot_connect"}
         return {}
 
-    async def _test_credentials(self, username, password, poolid):
+    async def _test_credentials(self, username, password, poolid, server=None):
         """Log in and read the pool, so a bad login or a bad poolID is caught here."""
         LOGGER.info(f"Verifying credentials for user '{username}' for pool #{poolid}")
-        api = KlereoAPI(username, password, poolid)
+        api = KlereoAPI(username, password, poolid, server)
         await self.hass.async_add_executor_job(api.get_pool)

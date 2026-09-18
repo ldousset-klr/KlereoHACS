@@ -2,8 +2,13 @@ DOMAIN = "klereo"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_POOLID = "poolid"
+CONF_SERVER = "server"
 DEF_POOLID = 0
-KLEREOSERVER = "https://connect.klereo.fr/php"
+# Base URL of the Klereo Connect server, overridable per config entry so a dev
+# or staging server can be pointed at. KLEREO_PATH is appended by the API, and
+# accepted if the user already typed it.
+DEF_SERVER = "https://connect.klereo.fr"
+KLEREO_PATH = "/php"
 UPDATE_INTERVAL = 300
 HA_VERSION = "100-HA"
 HTTP_TIMEOUT = 30

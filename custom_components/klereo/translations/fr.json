@@ -6,7 +6,8 @@
         "description": "Connectez-vous avec vos identifiants Klereo.",
         "data": {
           "username": "Identifiant",
-          "password": "Mot de passe"
+          "password": "Mot de passe",
+          "server": "Serveur (à ne changer que pour tester)"
         }
       },
       "pool": {

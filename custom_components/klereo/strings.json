@@ -6,7 +6,8 @@
         "description": "Sign in with your Klereo credentials.",
         "data": {
           "username": "Username",
-          "password": "Password"
+          "password": "Password",
+          "server": "Server (leave as is unless testing)"
         }
       },
       "pool": {
