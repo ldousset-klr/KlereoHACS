@@ -77,8 +77,8 @@ The rest of the code depends on these keys:
 - `params` is what identifies a probe's role: `EauCapteur`, `pHCapteur`, `TraitCapteur`
   and `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax`
   mirror the matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`,
-  `AirMin/Max`). That cross-check is how the units marked `(*)` in `PROBE_TYPES` were
-  inferred — use it again to confirm them, and to fill the entries that still have none.
+  `AirMin/Max`). That cross-check is how `PROBE_TYPES` was first derived — use it again to
+  fill the entries that still have no unit.
 - `IORename[]` carries the user's own names: `ioType: 1` entries index into `outs[]`,
   `ioType: 2` into `probes[]`. This is what the README's auto-naming TODO needs; nothing
   reads it yet.
