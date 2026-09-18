@@ -16,13 +16,18 @@ PROBE_INVALID = -1000
 #
 # Keys are the firmware's e_TypeCapteurs enum, taken from the board sources.
 # Units marked (*) are inferred from the params bounds rather than observed on a
-# live probe; the ones with no unit have a known quantity but no confirmed unit,
-# so they are published as plain numbers rather than mislabelled. GENERIC and
-# UNKNOWN are unitless by design: the firmware itself does not know the quantity.
+# live probe. The remaining entries without a unit (TAC, salinity, turbidity,
+# cover) have a known quantity but no confirmed unit, so they are published as
+# plain numbers rather than mislabelled. GENERIC and UNKNOWN are unitless by
+# design: the firmware itself does not know the quantity.
+#
+# No device_class is set for the percentage and flow entries: Home Assistant has
+# no generic percentage class, and volume_flow_rate does not exist on the older
+# versions hacs.json still allows.
 PROBE_TYPES = {
     0:  ("plant room temperature", "temperature", "°C",   "measurement"),
     1:  ("air temperature",        "temperature", "°C",   "measurement"),
-    2:  ("water level",            None,          None,   "measurement"),
+    2:  ("water level",            None,          "%",    "measurement"),
     3:  ("pH",                     "ph",          None,   "measurement"),
     4:  ("redox",                  None,          "mV",   "measurement"),
     5:  ("water temperature",      "temperature", "°C",   "measurement"),
@@ -31,8 +36,8 @@ PROBE_TYPES = {
     8:  ("salinity",               None,          None,   "measurement"),
     9:  ("turbidity",              None,          None,   "measurement"),
     10: ("generic",                None,          None,   "measurement"),
-    11: ("flow",                   None,          None,   "measurement"),
-    12: ("canister level",         None,          None,   "measurement"),
+    11: ("flow",                   None,          "m³/h", "measurement"),
+    12: ("canister level",         None,          "%",    "measurement"),
     13: ("cover",                  None,          None,   "measurement"),
     14: ("chlorine",               None,          "mg/L", "measurement"),  # (*) params ConsigneChlore 1.5, ChlMin/Max 0.1..5
     15: ("unknown",                None,          None,   "measurement"),
