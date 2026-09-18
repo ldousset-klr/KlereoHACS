@@ -36,7 +36,10 @@ set in `const.py` as `KLEREOSERVER`).
   password POSTed to `GetJWT.php`), sends `Authorization: Bearer <jwt>`, and on a 401/403
   clears the token and replays the request **once** before `raise_for_status()`. Every
   request carries `timeout=HTTP_TIMEOUT` (30 s) so a hung server cannot pin an executor
-  thread. `turn_on_device`/`turn_off_device` are thin wrappers over `set_out()`.
+  thread, and all of them share one `requests.Session` so the five endpoints stop paying
+  for a TLS handshake each. Note `self.jwt` is mutated from executor threads: a poll and a
+  switch press overlapping can both renew it, which costs a spare `GetJWT` but is
+  otherwise harmless — there is no lock. `turn_on_device`/`turn_off_device` are thin wrappers over `set_out()`.
   Failures raise `KlereoAuthError` (bad credentials, refused JWT) or `KlereoError`
   (anything else) — never a raw `KeyError`/`IndexError`. The API also answers *some*
   failures with HTTP 200 and an error payload, so `_payload_error()` inspects the body;
@@ -131,8 +134,11 @@ handover happens in seconds rather than at the next 300 s poll.
 
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- `KlereoOut.async_set_mode` / `KlereoAPI.set_device_mode` are stubs that only log, and
-  `async_set_mode` is not registered as a service, so nothing can reach it.
+- An out's `mode` is read-only: it is exposed as an attribute but nothing can change it.
+  The stubs that pretended to (`KlereoOut.async_set_mode`, `KlereoAPI.set_device_mode`)
+  only logged and were unreachable, so they were removed. Implementing it needs the
+  meaning of the `mode` values — 0, 1, 2, 3, 4 and 8 have been seen — and a service
+  registered on the switch platform.
 
 ## README TODOs worth knowing
 

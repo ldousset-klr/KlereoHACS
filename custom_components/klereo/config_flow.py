@@ -8,7 +8,6 @@ from .klereo_api import KlereoAPI, KlereoAuthError, KlereoError
 import logging
 LOGGER = logging.getLogger(__name__)
 
-@config_entries.HANDLERS.register(DOMAIN)
 class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 

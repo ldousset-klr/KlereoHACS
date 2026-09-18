@@ -32,7 +32,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         switches.append(KlereoOut(api,coordinator,out,poolid,device_info,
                                   names.get(out['index'])))
     #add switch enitities
-    async_add_entities(switches, update_before_add=True)
+    async_add_entities(switches)
 
 
 class KlereoOut(CoordinatorEntity, SwitchEntity):
@@ -46,9 +46,6 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         self._key = f"klereo{poolid}out{out['index']}"
         self._name = klereo_name or self._key
         self._index = out['index']
-        self._type = out['type']
-        self._mode = out['mode']
-        self._realstate = out['realStatus']
         self._poolid = poolid
         # Optimistic state held between a write and the next successful poll.
         self._optimistic_state = None
@@ -83,11 +80,6 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         return None
 
     @property
-    def mode(self):
-        return self._mode
-
-
-    @property
     def unique_id(self):
         return f"id_{self._key}"
 
@@ -115,11 +107,3 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         self._optimistic_state = False
         self.async_write_ha_state()
         await self.coordinator.async_request_refresh()
-
-    async def async_set_mode(self, mode):
-        #if mode not in ["manual", "timer", "schedule"]:
-        #    raise ValueError(f"Invalid mode: {mode}")
-        LOGGER.debug(f"Change mode #{self._poolid} {mode}")
-        await self.hass.async_add_executor_job(self._api.set_device_mode, self._index, mode)
-        self._mode = mode
-        self.async_write_ha_state()

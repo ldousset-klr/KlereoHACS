@@ -38,8 +38,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     klereo_name = klereo_io_names(pool_data, IO_TYPE_OUT).get(FILTRATION_OUT_INDEX)
     async_add_entities(
         [KlereoFiltrationSpeed(api, coordinator, poolid, device_info,
-                               max_speed, klereo_name)],
-        update_before_add=True,
+                               max_speed, klereo_name)]
     )
 
 

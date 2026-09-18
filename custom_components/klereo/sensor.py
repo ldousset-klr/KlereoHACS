@@ -24,7 +24,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         sensors.append(KlereoSensor(coordinator,probe,poolid,device_info,
                                     names.get(probe['index'])))
     #add sensor enitities
-    async_add_entities(sensors, update_before_add=True)
+    async_add_entities(sensors)
 
 
 class KlereoSensor(CoordinatorEntity, SensorEntity):

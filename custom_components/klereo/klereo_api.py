@@ -28,6 +28,9 @@ class KlereoAPI:
         self.poolid = poolid
         self.base_url = KLEREOSERVER
         self.jwt = None
+        # One session for the whole integration: without it every call to the
+        # five endpoints paid for a fresh TLS handshake.
+        self.session = requests.Session()
 
     def hash_password(self):
         return hashlib.sha1(self.password.encode()).hexdigest()
@@ -70,7 +73,7 @@ class KlereoAPI:
             'version': HA_VERSION,
             'app': 'api'
         }
-        response = requests.post(url, data=payload, timeout=HTTP_TIMEOUT)
+        response = self.session.post(url, data=payload, timeout=HTTP_TIMEOUT)
         if response.status_code in (401, 403):
             raise KlereoAuthError(f"{endpoint} rejected the credentials (HTTP {response.status_code})")
         response.raise_for_status()
@@ -94,7 +97,7 @@ class KlereoAPI:
         headers = {
             'Authorization': f'Bearer {self.jwt}'
         }
-        response = requests.post(url, headers=headers, data=payload, timeout=HTTP_TIMEOUT)
+        response = self.session.post(url, headers=headers, data=payload, timeout=HTTP_TIMEOUT)
         if response.status_code in (401, 403):
             if retry_auth:
                 LOGGER.info("JWT refused by %s (HTTP %s), renewing it", endpoint, response.status_code)
@@ -152,6 +155,3 @@ class KlereoAPI:
 
     def turn_off_device(self, outIdx):
         return self.set_out(outIdx, 0)
-
-    def set_device_mode(self, outIdx, mode):
-        LOGGER.info(f"Changemode #{outIdx} mode={mode}")
