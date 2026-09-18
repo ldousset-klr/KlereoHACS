@@ -69,7 +69,10 @@ set in `const.py` as `KLEREOSERVER`).
   `DeviceInfo` is imported from `helpers.device_registry`, its canonical home;
   `helpers.entity` only re-exports it.
 - `config_flow.py` — the `user` step takes credentials only and calls `list_pools()`,
-  then the `pool` step offers what the account holds, minus what is already configured.
+  then the `pool` step offers what the account holds, minus what is already configured,
+  through a `SelectSelector` in dropdown mode — a combo box that filters as the user types,
+  which `vol.In` does not, and a professional account can hold hundreds of pools. Options
+  are pre-sorted by name case-insensitively, hence `sort=False`.
   A `KlereoError` there (not a `KlereoAuthError`, which is a real credential failure)
   routes to the `manual` step, where the poolID is typed as before — GetIndex being down
   must not block setup. `_test_credentials` still performs a real `get_pool()` in the
@@ -168,9 +171,9 @@ handover happens in seconds rather than at the next 300 s poll.
 Same `{"status": "ok", "response": [...]}` envelope, one entry per system the account can
 see, carrying `idSystem` and `poolNickname` plus a summary of the system (`probes`,
 `outsmodes`, `pin`, `compta`, `proID`, `suspended`, `access`). `list_pools()` keeps only
-the id and the name. `suspended` is deliberately *not* filtered on: a suspended system
-stays in the picker and fails later at `GetPoolDetails` with a clear message, rather than
-vanishing with no explanation.
+the id and the name. `suspended` is deliberately *not* filtered on — the codeowner's call:
+a suspended system stays in the picker and fails later at `GetPoolDetails` with a clear
+message, rather than vanishing with no explanation.
 
 ## README TODOs worth knowing
 

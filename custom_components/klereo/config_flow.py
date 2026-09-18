@@ -1,5 +1,10 @@
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 from requests import RequestException
 
 from .const import DOMAIN,CONF_USERNAME,CONF_PASSWORD,CONF_POOLID,DEF_POOLID
@@ -67,13 +72,28 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Drop what is already set up: the unique_id would reject it anyway,
         # but only after the user picked it.
         configured = {entry.unique_id for entry in self._async_current_entries()}
-        choices = {key: name for key, name in sorted(names.items(), key=lambda kv: kv[1])
-                   if key not in configured}
-        if not choices:
+        options = [
+            {"value": key, "label": name}
+            for key, name in sorted(names.items(), key=lambda kv: kv[1].lower())
+            if key not in configured
+        ]
+        if not options:
             return self.async_abort(reason="already_configured")
         return self.async_show_form(
             step_id="pool",
-            data_schema=vol.Schema({vol.Required(CONF_POOLID): vol.In(choices)}),
+            data_schema=vol.Schema({
+                # A dropdown selector rather than vol.In: it renders a combo box
+                # that filters as the user types, which a plain dropdown does
+                # not, and a professional account can hold hundreds of pools.
+                # sort is off because the options are already ordered by name.
+                vol.Required(CONF_POOLID): SelectSelector(
+                    SelectSelectorConfig(
+                        options=options,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        sort=False,
+                    )
+                ),
+            }),
             errors=errors,
         )
 
