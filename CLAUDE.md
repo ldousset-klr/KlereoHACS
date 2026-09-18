@@ -52,8 +52,11 @@ set in `const.py` as `KLEREOSERVER`).
   reauth flow) and `KlereoError`/`RequestException` to `UpdateFailed`.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
   pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
-  Both platforms build it once in `async_setup_entry` and pass it to each entity.
-  `serial_number` (`podSerial`) is simply not exposed yet — the declared minimum covers it.
+  Both platforms build it once in `async_setup_entry` and pass it to each entity. Optional
+  fields (`sw_version` from `PodSW`, `serial_number` from `podSerial`) are only set when
+  the payload carries them, so a missing one is absent rather than the string `"None"`.
+  `DeviceInfo` is imported from `helpers.device_registry`, its canonical home;
+  `helpers.entity` only re-exports it.
 - `config_flow.py` — UI flow collecting username/password/poolID. `_test_credentials`
   performs a real `get_pool()` in the executor, so a bad login *and* a bad poolID are
   caught at setup time. `async_step_reauth`/`async_step_reauth_confirm` handle the
