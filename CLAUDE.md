@@ -59,6 +59,10 @@ set in `const.py` as `KLEREOSERVER`).
   Both platforms build it once in `async_setup_entry` and pass it to each entity. Optional
   fields (`sw_version` from `PodSW`, `serial_number` from `podSerial`) are only set when
   the payload carries them, so a missing one is absent rather than the string `"None"`.
+  **The device is keyed on the poolID, and must stay that way**: one physical pod can serve
+  several systems — two captured pools share a `podSerial` and a `register.pin` — so keying
+  on the serial would merge them into a single device. Two HA devices showing the same
+  serial is correct here, and the registry only enforces uniqueness on `identifiers`.
   `DeviceInfo` is imported from `helpers.device_registry`, its canonical home;
   `helpers.entity` only re-exports it.
 - `config_flow.py` — UI flow collecting username/password/poolID. `_test_credentials`
@@ -120,8 +124,9 @@ The rest of the code depends on these keys:
   `updateTime`. **`status` is not a boolean, and its meaning depends on the output**: on
   the filtration it is a variable-speed index, 0 (stopped) to 7; on every other output it
   is `0` off, `1` on, `2` *unknown*. So `is_on` returns `None` on a 2 it did not read from
-  the filtration — reporting it as on or off would both be wrong. Roles look fixed by index rather
-  than declared: on both captured pools, outs 1/2/3/4 `totalTime` matches `params`
+  the filtration — reporting it as on or off would both be wrong. Not every pool exposes every out — one has
+  `outs: []`, another only index 0, a lighting output. Roles look fixed by index rather
+  than declared: on the pools that carry them, outs 1/2/3/4 `totalTime` matches `params`
   `Filtration_`, `PHMinus_`, `ElectroChlore_` and `Chauff_TotalTime`, which is what
   `FILTRATION_OUT_INDEX = 1` rests on. **`outs[].type` is not the role** — it is 0 on every
   output of one pool, and 8 on the disinfectant and the heater of the other. The codeowner
