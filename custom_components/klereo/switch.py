@@ -3,6 +3,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .entity import klereo_device_info
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -16,19 +17,21 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     pool_data=coordinator.data;
     outs = pool_data["outs"]
     poolid = pool_data['idSystem']
+    device_info = klereo_device_info(pool_data, poolid)
     # Add switches
     switches = []
     for out in outs:
         LOGGER.info(f"Adding out for #{poolid}: {out}")
-        switches.append(KlereoOut(api,coordinator,out,poolid))
+        switches.append(KlereoOut(api,coordinator,out,poolid,device_info))
     #add switch enitities
     async_add_entities(switches, update_before_add=True)
 
 
 class KlereoOut(CoordinatorEntity, SwitchEntity):
 
-    def __init__(self, api, coordinator, out, poolid):
+    def __init__(self, api, coordinator, out, poolid, device_info):
         super().__init__(coordinator)
+        self._attr_device_info = device_info
         self._api = api
         self._name = f"klereo{poolid}out{out['index']}"
         self._index = out['index']

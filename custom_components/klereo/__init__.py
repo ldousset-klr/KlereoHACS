@@ -30,6 +30,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except (KlereoError, RequestException) as err:
             raise UpdateFailed(str(err)) from err
 
+    # Entries created before the flow set one have no unique_id, which would
+    # let the same pool be added a second time. Backfill it here.
+    if entry.unique_id is None:
+        hass.config_entries.async_update_entry(
+            entry, unique_id=str(entry.data.get('poolid'))
+        )
+
     # Initialize the API
     LOGGER.info(f"Initializing {DOMAIN} for pool #{entry.data.get('poolid')}...")
     api = KlereoAPI(entry.data.get('username'), entry.data.get('password'), entry.data.get('poolid'))

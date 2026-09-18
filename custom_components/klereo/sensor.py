@@ -2,6 +2,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, PROBE_INVALID, PROBE_TYPES, PROBE_TYPE_DEFAULT
+from .entity import klereo_device_info
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -14,19 +15,21 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     pool_data=coordinator.data;
     probes = pool_data["probes"]
     poolid = pool_data['idSystem']
+    device_info = klereo_device_info(pool_data, poolid)
     # Add sensors
     sensors = []
     for probe in probes:
         LOGGER.info(f"Adding sensor for #{poolid}: {probe}")
-        sensors.append(KlereoSensor(coordinator,probe,poolid))
+        sensors.append(KlereoSensor(coordinator,probe,poolid,device_info))
     #add sensor enitities
     async_add_entities(sensors, update_before_add=True)
 
 
 class KlereoSensor(CoordinatorEntity, SensorEntity):
 
-    def __init__(self, coordinator, probe, poolid):
+    def __init__(self, coordinator, probe, poolid, device_info):
         super().__init__(coordinator)
+        self._attr_device_info = device_info
         self._name = f"klereo{poolid}probe{probe['index']}"
         self._index = probe['index']
         self._type = probe['type']

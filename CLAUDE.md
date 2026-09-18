@@ -49,12 +49,19 @@ set in `const.py` as `KLEREOSERVER`).
   `hass.data[DOMAIN][entry.entry_id]` for the platforms. `PLATFORMS = ["sensor", "switch"]`.
   The update callback maps `KlereoAuthError` to `ConfigEntryAuthFailed` (triggering the
   reauth flow) and `KlereoError`/`RequestException` to `UpdateFailed`.
+- `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
+  pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
+  Both platforms build it once in `async_setup_entry` and pass it to each entity. It only
+  uses `DeviceInfo` keys available in HA 2021.12; `serial_number` (`podSerial`) would need
+  2023.8, so bump `hacs.json` before adding it.
 - `config_flow.py` — UI flow collecting username/password/poolID. `_test_credentials`
   performs a real `get_pool()` in the executor, so a bad login *and* a bad poolID are
   caught at setup time. `async_step_reauth`/`async_step_reauth_confirm` handle the
   `ConfigEntryAuthFailed` the coordinator raises. Form error keys (`invalid_auth`,
   `cannot_connect`) must exist in `strings.json` **and** `translations/*.json` — HA reads
   the latter at runtime, so adding a key to only one of them shows a raw slug in the UI.
+  The entry's `unique_id` is the poolID, so a pool can only be configured once;
+  `async_setup_entry` backfills it on entries created before that existed.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
   re-scan `coordinator.data` on every property read rather than caching. `KlereoSensor`

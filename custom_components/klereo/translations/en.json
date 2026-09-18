@@ -24,7 +24,8 @@
       "cannot_connect": "Could not reach the Klereo server."
     },
     "abort": {
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "already_configured": "This pool is already configured."
     }
   }
 }

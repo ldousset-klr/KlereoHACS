@@ -19,6 +19,10 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         LOGGER.info(f"Configuration {DOMAIN}")
         if user_input is not None:
+            # One config entry per pool: adding the same poolID twice would
+            # collide on every entity unique_id.
+            await self.async_set_unique_id(str(user_input[CONF_POOLID]))
+            self._abort_if_unique_id_configured()
             errors = await self._validate(user_input)
             if not errors:
                 return self.async_create_entry(

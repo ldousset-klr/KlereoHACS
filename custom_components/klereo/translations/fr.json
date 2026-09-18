@@ -24,7 +24,8 @@
       "cannot_connect": "Serveur Klereo injoignable."
     },
     "abort": {
-      "reauth_successful": "Ré-authentification réussie."
+      "reauth_successful": "Ré-authentification réussie.",
+      "already_configured": "Cette piscine est déjà configurée."
     }
   }
 }
