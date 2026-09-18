@@ -72,8 +72,9 @@ The rest of the code depends on these keys:
   `type` selects the unit through `PROBE_TYPES` in `const.py`, keyed by the firmware's
   `e_TypeCapteurs` enum (0-15, the authoritative list — a type outside it logs a warning).
   Every mapped unit is confirmed against the firmware. `GENERIC` (10), `UNKNOWN` (15) and
-  `TURBIDITE` (9) carry no unit on purpose. Note `°f` on `TAC` is the French degree of
-  alkalinity, not Fahrenheit — it must never be given a temperature `device_class`. A `filteredValue` of
+  `TURBIDITE` (9) carry no unit on purpose. Type 7 carries both TAC and TH, which the
+  firmware does not distinguish; its `°f` is the French degree of alkalinity/hardness, not
+  Fahrenheit, and must never be given a temperature `device_class`. A `filteredValue` of
   `-1000` means the probe is absent or unreadable and becomes `None`.
 - `params` is what identifies a probe's role: `EauCapteur`, `pHCapteur`, `TraitCapteur`
   and `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax`

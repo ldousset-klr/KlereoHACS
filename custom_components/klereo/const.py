@@ -18,6 +18,10 @@ PROBE_INVALID = -1000
 # Every unit here is confirmed. GENERIC, UNKNOWN and TURBIDITE carry no unit on
 # purpose; for the first two the firmware does not know the quantity.
 #
+# Type 7 covers both TAC (alkalinity) and TH (hardness) — the firmware does not
+# distinguish them and both are in French degrees, so a probe of this type
+# cannot be told apart from the payload alone.
+#
 # "°f" is the French degree of alkalinity/hardness, not Fahrenheit: keep it
 # lowercase and never give it a temperature device_class, or Home Assistant
 # would convert it.
@@ -33,7 +37,7 @@ PROBE_TYPES = {
     4:  ("redox",                  None,          "mV",   "measurement"),
     5:  ("water temperature",      "temperature", "°C",   "measurement"),
     6:  ("filter pressure",        "pressure",    "mbar", "measurement"),
-    7:  ("total alkalinity",       None,          "°f",   "measurement"),
+    7:  ("alkalinity or hardness", None,          "°f",   "measurement"),
     8:  ("salinity",               None,          "g/L",  "measurement"),
     9:  ("turbidity",              None,          None,   "measurement"),
     10: ("generic",                None,          None,   "measurement"),
