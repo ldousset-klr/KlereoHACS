@@ -103,8 +103,9 @@ The rest of the code depends on these keys:
   than declared: on both captured pools, outs 1/2/3/4 `totalTime` matches `params`
   `Filtration_`, `PHMinus_`, `ElectroChlore_` and `Chauff_TotalTime`, which is what
   `FILTRATION_OUT_INDEX = 1` rests on. **`outs[].type` is not the role** — it is 0 on every
-  output of one pool, and 8 on the disinfectant and the heater of the other, so it does not
-  follow the firmware's `e_OutTypes`; treat it, like `mode`, as an attribute only.
+  output of one pool, and 8 on the disinfectant and the heater of the other. The codeowner
+  confirmed it is *not* the firmware's `e_OutTypes` and has yet to establish what it does
+  encode, so don't map it against that enum; like `mode`, it stays an attribute only.
 
 Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode: 2` (manual) and
 `newState`, which takes the same encoding as `status` above — so turning the filtration on

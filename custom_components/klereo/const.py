@@ -62,7 +62,8 @@ OUT_STATUS_UNKNOWN = 2
 # Output roles look fixed by index, not declared in the payload: across two
 # captured pools, outs 1/2/3/4 totalTime matches params Filtration_, PHMinus_,
 # ElectroChlore_ and Chauff_TotalTime respectively (exactly for 2/3/4, within a
-# poll for the filtration). Note outs[].type does NOT give the role — it read 0
+# poll for the filtration). Note outs[].type does NOT give the role: it read 0
 # on all of them in one pool and 8 on the disinfectant and the heater in the
-# other, so it is not the firmware's e_OutTypes.
+# other. The codeowner confirmed it is not the firmware's e_OutTypes; what it
+# actually encodes is still to be determined, so do not build on it.
 FILTRATION_OUT_INDEX = 1
