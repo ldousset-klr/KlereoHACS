@@ -117,7 +117,11 @@ credential disclosure, not just a connection failure.
   user name, so the conflict stays hidden. `OUT_LABELS` does the same for outs, and the
   speed entity in `number.py` names itself from it too.
   `KlereoSensor`
-  resolves its unit once in `__init__` and exposes `native_value`; `device_class` and
+  resolves its unit once in `__init__` and exposes `native_value`. Icons come from
+  `PROBE_ICONS` and `OUT_ICONS` in `const.py`, **only where the entity has no
+  `device_class`**: where it has one, Home Assistant already picks a fitting icon and
+  overriding it would also lose the state-aware variants. Every name there was checked
+  against the Material Design Icons set — an unknown one renders blank; `device_class` and
   `state_class` are kept as plain strings in `const.py` so no enum member missing from an
   older Home Assistant can break the import.
 
@@ -226,6 +230,13 @@ a suspended system stays in the picker and fails later at `GetPoolDetails` with 
 message, rather than vanishing with no explanation.
 
 ## README TODOs worth knowing
+
+The integration's **logo** is not in this repository: Home Assistant fetches it from
+`brands.home-assistant.io`, fed by the `home-assistant/brands` repo, under
+`custom_integrations/klereo/` — `icon.png` at 256x256 and `icon@2x.png` at 512x512, PNG,
+square, trimmed, transparency preferred. The root `icon.png` here is 256x256 RGBA and
+already fits the first of the two; nothing in the component reads it. Entity icons are a
+separate mechanism entirely, see `PROBE_ICONS`/`OUT_ICONS`.
 
 The README carries a disclaimer that the integration is
 community-driven and **not officially endorsed or supported by Klereo** — keep that framing

@@ -194,3 +194,43 @@ OUT_MODE_CHOICES = {
 # read-only until the codeowner specifies how SetOut should be called on them;
 # their entities still exist and still report state.
 WRITABLE_OUT_INDEXES = frozenset({0, 5, 6, 7, 9, 10, 11, 12, 13, 14})
+
+# Icons, only where Home Assistant has no default of its own. Probe types that
+# carry a device_class (temperature, ph, pressure) are left alone: HA already
+# picks a fitting icon and changing it would also lose the state-aware variants.
+# Every name below was checked against the Material Design Icons set.
+PROBE_ICONS = {
+    2: "mdi:water-percent",       # water level
+    4: "mdi:flash",               # redox
+    7: "mdi:beaker-outline",      # alkalinity / hardness
+    8: "mdi:shaker-outline",      # salinity
+    9: "mdi:blur",                # turbidity
+    11: "mdi:waves-arrow-right",  # flow
+    12: "mdi:car-coolant-level",  # canister level
+    13: "mdi:window-shutter",     # cover
+    14: "mdi:flask",              # chlorine
+}
+
+# Switch icons follow the out's role, which is its index.
+_ICON_AUX = "mdi:power-plug"
+OUT_ICONS = {
+    0: "mdi:lightbulb",
+    1: "mdi:water-pump",
+    2: "mdi:test-tube",
+    3: "mdi:spray-bottle",
+    4: "mdi:radiator",
+    5: _ICON_AUX,
+    6: _ICON_AUX,
+    7: _ICON_AUX,
+    8: "mdi:beaker",
+    9: _ICON_AUX,
+    10: _ICON_AUX,
+    11: _ICON_AUX,
+    12: _ICON_AUX,
+    13: _ICON_AUX,
+    14: _ICON_AUX,
+    15: "mdi:flask",
+}
+
+ICON_FILTRATION_SPEED = "mdi:speedometer"
+ICON_INFO = "mdi:identifier"

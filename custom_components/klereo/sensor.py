@@ -2,8 +2,8 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (DOMAIN, PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
-                    PROBE_TYPE_DEFAULT)
+from .const import (DOMAIN, ICON_INFO, PROBE_ICONS, PROBE_INVALID, PROBE_LABELS,
+                    PROBE_TYPES, PROBE_TYPE_DEFAULT)
 from .entity import IO_TYPE_PROBE, klereo_device_info, klereo_io_names
 
 import logging
@@ -70,6 +70,9 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
             self._type, PROBE_TYPE_DEFAULT
         )
         self._attr_device_class = device_class
+        # Only where there is no device_class: HA's own icon is better informed.
+        if device_class is None:
+            self._attr_icon = PROBE_ICONS.get(self._type)
         self._attr_native_unit_of_measurement = unit
         self._attr_state_class = state_class
 
@@ -127,6 +130,7 @@ class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
     """A read-only piece of the pool's identity, shown under Diagnostic."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = ICON_INFO
 
     def __init__(self, coordinator, poolid, device_info, key, label, getter):
         super().__init__(coordinator)

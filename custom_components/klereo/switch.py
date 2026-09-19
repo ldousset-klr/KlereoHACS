@@ -6,6 +6,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     DOMAIN,
     FILTRATION_OUT_INDEX,
+    OUT_ICONS,
     OUT_LABELS,
     OUT_MODES,
     WRITABLE_OUT_INDEXES,
@@ -51,6 +52,7 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         # The user's own name wins; the controller's name for that slot comes
         # next; the raw key is the last resort.
         self._name = klereo_name or OUT_LABELS.get(out['index']) or self._key
+        self._attr_icon = OUT_ICONS.get(out['index'])
         self._index = out['index']
         self._poolid = poolid
         # Optimistic state held between a write and the next successful poll.

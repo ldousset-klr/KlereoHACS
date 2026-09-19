@@ -3,8 +3,8 @@ from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (DOMAIN, FILTRATION_OUT_INDEX, MAX_PUMP_SPEED, OUT_LABELS,
-                    WRITABLE_OUT_INDEXES)
+from .const import (DOMAIN, FILTRATION_OUT_INDEX, ICON_FILTRATION_SPEED,
+                    MAX_PUMP_SPEED, OUT_LABELS, WRITABLE_OUT_INDEXES)
 from .entity import IO_TYPE_OUT, klereo_device_info, klereo_io_names
 
 import logging
@@ -50,6 +50,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class KlereoFiltrationSpeed(CoordinatorEntity, NumberEntity):
     """The filtration out's status read and written as a speed index."""
 
+    _attr_icon = ICON_FILTRATION_SPEED
     _attr_native_min_value = 0
     _attr_native_step = 1
 
