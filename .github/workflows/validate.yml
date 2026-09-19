@@ -26,7 +26,7 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # The logo has not been submitted to home-assistant/brands yet, so
-          # that check would fail on something this repository cannot fix.
-          # Drop this line once the pull request there is merged.
+          # Permanent: home-assistant/brands no longer accepts custom
+          # integrations, which ship their own brand/ directory since Home
+          # Assistant 2026.3, so this check can never pass here.
           ignore: brands

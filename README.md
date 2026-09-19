@@ -58,8 +58,9 @@ whatever address it holds**.
   purpose — a measurement without circulation means nothing — so a sensor can sit hours
   behind. Compare the `Time` and `DirectTime` attributes to tell a settled reading from a
   stale one.
-- The integration has no logo in Home Assistant yet; it is pending submission to the
-  `home-assistant/brands` repository.
+- **The logo needs Home Assistant 2026.3 or later.** It ships in
+  `custom_components/klereo/brand/`, which older releases ignore; they fall back to a
+  placeholder.
 
 ## The Klereo Connect API
 
