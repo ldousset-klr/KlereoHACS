@@ -108,7 +108,8 @@ credential disclosure, not just a connection failure.
   the index, not the type, and the two disagree on a few installs — a type 10 generic at
   index 20 whose label reads "Température air 3" — so it is only ever a fallback, never
   applied over an `IORename` name. On the captured pools every mismatched slot carried a
-  user name, so the conflict stays hidden. Outs have no such table and keep their key.
+  user name, so the conflict stays hidden. `OUT_LABELS` does the same for outs, and the
+  speed entity in `number.py` names itself from it too.
   `KlereoSensor`
   resolves its unit once in `__init__` and exposes `native_value`; `device_class` and
   `state_class` are kept as plain strings in `const.py` so no enum member missing from an
@@ -156,10 +157,12 @@ The rest of the code depends on these keys:
   the filtration it is a variable-speed index, 0 (stopped) to 7; on every other output it
   is `0` off, `1` on, `2` *unknown*. So `is_on` returns `None` on a 2 it did not read from
   the filtration — reporting it as on or off would both be wrong. Not every pool exposes every out — one has
-  `outs: []`, another only index 0, a lighting output. Roles look fixed by index rather
-  than declared: on the pools that carry them, outs 1/2/3/4 `totalTime` matches `params`
-  `Filtration_`, `PHMinus_`, `ElectroChlore_` and `Chauff_TotalTime`, which is what
-  `FILTRATION_OUT_INDEX = 1` rests on. **`outs[].type` is not the role** — it is 0 on every
+  `outs: []`, another only index 0, a lighting output. Roles are fixed by index rather than
+  declared — confirmed by the firmware's own slot names in `OUT_LABELS`, index 1 being the
+  filtration, which is what `FILTRATION_OUT_INDEX = 1` rests on and which matches the
+  `totalTime` of outs 1/2/3/4 tracking `params` `Filtration_`, `PHMinus_`,
+  `ElectroChlore_` and `Chauff_TotalTime`. Installations that are not pools reuse the
+  slots — a boiler names out 0 "Circulateur" where the table reads "Éclairage". **`outs[].type` is not the role** — it is 0 on every
   output of one pool, and 8 on the disinfectant and the heater of the other. The codeowner
   confirmed it is *not* the firmware's `e_OutTypes` and has yet to establish what it does
   encode, so don't map it against that enum; like `mode`, it stays an attribute only.

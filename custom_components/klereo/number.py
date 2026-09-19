@@ -2,7 +2,7 @@ from homeassistant.components.number import NumberEntity
 from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, FILTRATION_OUT_INDEX, MAX_PUMP_SPEED
+from .const import DOMAIN, FILTRATION_OUT_INDEX, MAX_PUMP_SPEED, OUT_LABELS
 from .entity import IO_TYPE_OUT, klereo_device_info, klereo_io_names
 
 import logging
@@ -59,7 +59,8 @@ class KlereoFiltrationSpeed(CoordinatorEntity, NumberEntity):
         self._attr_native_max_value = max_speed
         # Same rule as the other platforms: unique_id follows _key, not the name.
         self._key = f"klereo{poolid}out{FILTRATION_OUT_INDEX}speed"
-        base = klereo_name or f"klereo{poolid}out{FILTRATION_OUT_INDEX}"
+        base = (klereo_name or OUT_LABELS.get(FILTRATION_OUT_INDEX)
+                or f"klereo{poolid}out{FILTRATION_OUT_INDEX}")
         self._name = f"{base} speed"
         self._optimistic_speed = None
 

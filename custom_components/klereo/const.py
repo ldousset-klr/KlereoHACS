@@ -64,13 +64,13 @@ OUT_STATUS_UNKNOWN = 2
 
 # Which out carries the filtration, and so which one reads as a speed index.
 #
-# Output roles look fixed by index, not declared in the payload: across two
-# captured pools, outs 1/2/3/4 totalTime matches params Filtration_, PHMinus_,
-# ElectroChlore_ and Chauff_TotalTime respectively (exactly for 2/3/4, within a
-# poll for the filtration). Note outs[].type does NOT give the role: it read 0
-# on all of them in one pool and 8 on the disinfectant and the heater in the
-# other. The codeowner confirmed it is not the firmware's e_OutTypes; what it
-# actually encodes is still to be determined, so do not build on it.
+# Confirmed by the firmware: output roles are fixed by index, and index 1 is the
+# filtration (see OUT_LABELS below). That matches what the payloads already
+# showed, outs 1/2/3/4 totalTime tracking params Filtration_, PHMinus_,
+# ElectroChlore_ and Chauff_TotalTime. Note outs[].type does NOT give the role:
+# it read 0 on all of them in one pool and 8 on the disinfectant and the heater
+# in the other. The codeowner confirmed it is not the firmware's e_OutTypes;
+# what it actually encodes is still to be determined, so do not build on it.
 FILTRATION_OUT_INDEX = 1
 
 # Highest speed index SetOut accepts on the filtration output. A pool advertises
@@ -122,4 +122,30 @@ PROBE_LABELS = {
     29: "Température air 8",
     30: "Température air 9",
     31: "Température air 10",
+}
+
+# outs[].index -> the name the controller gives that slot, from the firmware.
+#
+# Same rule as PROBE_LABELS: a fallback applied only when IORename has nothing,
+# never over it. Installations that are not pools reuse the slots for other
+# purposes — a boiler names out 0 "Circulateur" where the table reads
+# "Éclairage" — and auxiliaries almost always carry a user name, so the generic
+# "Auxiliaire N" rarely surfaces.
+OUT_LABELS = {
+    0: "Éclairage",
+    1: "Filtration",
+    2: "Correcteur pH",
+    3: "Désinfectant",
+    4: "Chauffage",
+    5: "Auxiliaire 1",
+    6: "Auxiliaire 2",
+    7: "Auxiliaire 3",
+    8: "Floculant",
+    9: "Auxiliaire 4",
+    10: "Auxiliaire 5",
+    11: "Auxiliaire 6",
+    12: "Auxiliaire 7",
+    13: "Auxiliaire 8",
+    14: "Auxiliaire 9",
+    15: "Chlore hybride",
 }
