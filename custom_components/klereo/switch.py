@@ -111,8 +111,10 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         return None
 
     async def async_turn_on(self, **kwargs):
-        # Carry the out's current mode through: writing a mode of our own would
-        # take a regulated or scheduled output out of the way it is driven.
+        # Carry the out's current mode through, by the codeowner's decision:
+        # writing 0 (Manuel) would pull a regulated output out of regulation.
+        # The cost is that toggling such an output may look inert, the
+        # regulator still owning its state.
         out = self._out()
         mode = out['mode'] if out else None
         await self.hass.async_add_executor_job(

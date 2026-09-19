@@ -180,7 +180,12 @@ handover happens in seconds rather than at the next 300 s poll.
 hardcoded to 2**, so every write silently put its output into timer mode, including
 outputs for which 2 is not even permitted. `set_out()` now takes it explicitly and has no
 default; the switch and the speed entity pass the out's *current* mode through, so a write
-changes the state and nothing else.
+changes the state and nothing else. **That is the codeowner's decision, not a fallback**:
+forcing `0` (Manuel) would make a switch behave the way people expect, but it would also
+pull the pH corrector, the disinfectant or the heater out of regulation and disturb the
+water treatment. The accepted cost is that toggling a regulated output may appear to do
+nothing, the regulator still owning its state — so don't "fix" an inert switch on such an
+output by writing a mode.
 
 `OUT_MODE_CHOICES` lists, per out index, the modes the firmware permits: lighting and
 auxiliaries take 0/1/2/4/6/8, and the regulated outputs (pH, disinfectant, flocculant,
