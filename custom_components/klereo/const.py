@@ -168,19 +168,73 @@ OUT_MODES = {
     8: "Impulsion",
 }
 
+# A mode's name can depend on the output it is on. Mode 2 reads "Minuterie" on
+# the switched outs and "Volume fixe" on the pH corrector; the codeowner
+# confirmed the two are functionally identical and only the label differs.
+# Read through entity.klereo_out_mode_name(), never OUT_MODES directly.
+OUT_MODE_NAME_OVERRIDES = {
+    2: {2: "Volume fixe"},  # pH corrector
+}
+
+# What newState may carry, per out index and per mode. The permitted lists come
+# from the codeowner, one output family at a time, and each family has its own:
+# the same mode number does not take the same states everywhere.
+#
+# Where OUT_STATE_KEEP appears, a mode change can leave the output's state
+# alone, and that is what select.py sends. Where it does not, the mode change
+# necessarily commands the output too — see _MODE_STATES_PH below.
+_MODE_STATES_SWITCHED = {  # lighting (0) and the auxiliaries (5-7, 9-14)
+    0: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Manuel
+    1: (OUT_STATE_KEEP,),                                # Plages horaires
+    2: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Minuterie
+    4: (OUT_STATE_KEEP,),                                # Synchronisé
+    6: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Maintenance
+    8: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Impulsion
+}
+
+# The pH corrector (2). Note Manuel here takes **only** OUT_STATUS_OFF: a dosing
+# pump put back under manual control is stopped, it cannot be commanded on and
+# it cannot keep its state. So selecting Manuel on this output does stop the
+# dosing — the one place where changing a mode also changes what the output is
+# doing, and deliberately so.
+_MODE_STATES_PH = {
+    0: (OUT_STATUS_OFF,),                                # Manuel
+    2: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Volume fixe
+    3: (OUT_STATE_KEEP,),                                # Régulé
+}
+
+OUT_MODE_STATES = {
+    0: _MODE_STATES_SWITCHED,
+    2: _MODE_STATES_PH,
+    5: _MODE_STATES_SWITCHED,
+    6: _MODE_STATES_SWITCHED,
+    7: _MODE_STATES_SWITCHED,
+    9: _MODE_STATES_SWITCHED,
+    10: _MODE_STATES_SWITCHED,
+    11: _MODE_STATES_SWITCHED,
+    12: _MODE_STATES_SWITCHED,
+    13: _MODE_STATES_SWITCHED,
+    14: _MODE_STATES_SWITCHED,
+}
+
 # Which modes may be offered for an out, by index — roles being fixed by index.
 # Anything outside these lists is reserved: if an out already carries such a
 # value, leave it untouched rather than writing one of these over it.
+#
+# Derived from OUT_MODE_STATES wherever the states are known, so the two tables
+# cannot drift apart. The outputs still awaiting their state rules keep an
+# explicit list, which is enough to name a mode but not to write one.
 #
 # Filtration (1) and hybrid chlorine (15) are deliberately absent: the firmware's
 # allowed list for them has not been supplied. Modes 0/1/3 and 2/3 have merely
 # been *observed* on them, which is not the same as being permitted, so nothing
 # offers a mode change on those two.
-_MODES_SWITCHED = (0, 1, 2, 4, 6, 8)  # lighting and auxiliaries
-_MODES_REGULATED = (0, 3)             # pH, disinfectant, flocculant, heating
+_MODES_SWITCHED = tuple(_MODE_STATES_SWITCHED)  # 0, 1, 2, 4, 6, 8
+_MODES_PH = tuple(_MODE_STATES_PH)              # 0, 2, 3
+_MODES_REGULATED = (0, 3)   # disinfectant, flocculant, heating: states unknown
 OUT_MODE_CHOICES = {
     0: _MODES_SWITCHED,
-    2: _MODES_REGULATED,
+    2: _MODES_PH,
     3: _MODES_REGULATED,
     4: _MODES_REGULATED,
     5: _MODES_SWITCHED,
@@ -195,29 +249,13 @@ OUT_MODE_CHOICES = {
     14: _MODES_SWITCHED,
 }
 
-# What newState may carry, per mode, on the switched outs. Supplied by the
-# codeowner for lighting and the auxiliaries; the regulated outs' mode 3 is
-# absent because nothing writes them yet.
-#
-# OUT_STATE_KEEP is accepted by every mode and is what a mode change sends.
-# Plages horaires and Synchronisé accept *nothing else*: in those two the
-# schedule owns the output, so a plain on/off has no meaning and the switch
-# refuses rather than sending a combination the firmware does not define.
-OUT_MODE_STATES = {
-    0: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Manuel
-    1: (OUT_STATE_KEEP,),                                # Plages horaires
-    2: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Minuterie
-    4: (OUT_STATE_KEEP,),                                # Synchronisé
-    6: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Maintenance
-    8: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Impulsion
-}
-
-# Outs Home Assistant may write to, for now: lighting and the auxiliaries —
-# exactly the group that takes the _MODES_SWITCHED list above. Everything else
-# (filtration, pH, disinfectant, heating, flocculant, hybrid chlorine) is
-# read-only until the codeowner specifies how SetOut should be called on them;
-# their entities still exist and still report state.
-WRITABLE_OUT_INDEXES = frozenset({0, 5, 6, 7, 9, 10, 11, 12, 13, 14})
+# Outs Home Assistant may write to: exactly those carrying an OUT_MODE_STATES
+# entry, since nothing may be written to an output whose permitted states are
+# unknown. That is lighting, the auxiliaries and the pH corrector today.
+# Everything else (filtration, disinfectant, heating, flocculant, hybrid
+# chlorine) stays read-only until the codeowner supplies its rules; their
+# entities still exist and still report state.
+WRITABLE_OUT_INDEXES = frozenset(OUT_MODE_STATES)
 
 # Icons, only where Home Assistant has no default of its own. Probe types that
 # carry a device_class (temperature, ph, pressure) are left alone: HA already

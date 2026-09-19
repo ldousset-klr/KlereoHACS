@@ -16,9 +16,11 @@ One device per pool, named after its Klereo nickname, carrying:
 - **A switch per output** — lighting, filtration, pH corrector, disinfectant, heating and
   the auxiliaries.
 - **The filtration speed**, on pools whose pump has more than one.
-- **A mode selector** on each output you can drive — *Manuel*, *Plages horaires*,
-  *Minuterie*, *Synchronisé*, *Maintenance*, *Impulsion*. Changing the mode leaves the
-  output doing whatever it was doing.
+- **A mode selector** on each output you can drive. Lighting and the auxiliaries offer
+  *Manuel*, *Plages horaires*, *Minuterie*, *Synchronisé*, *Maintenance* and *Impulsion*;
+  the pH corrector offers *Manuel*, *Volume fixe* and *Régulé*. Changing the mode leaves
+  the output doing whatever it was doing — except *Manuel* on the pH corrector, which
+  stops the dosing pump, the controller allowing nothing else there.
 - **Diagnostic sensors** for the registration PIN and the device slot on the pod.
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
@@ -52,16 +54,18 @@ whatever address it holds**.
 
 ## Current limitations
 
-- **Only lighting and auxiliary outputs can be switched.** Filtration, pH corrector,
+- **Only lighting, the auxiliaries and the pH corrector can be driven.** Filtration,
   disinfectant, heating, flocculant and hybrid chlorine report their state but refuse to
-  be driven, until the write semantics for them are settled. That also makes the
-  filtration speed read-only for now.
+  be written, until the rules for them are settled. That also makes the filtration speed
+  read-only for now.
 - **The mode selector only covers the outputs you can switch.** On the others the mode is
   still visible as an entity attribute (*Manuel*, *Plages horaires*, *Régulé*…) but
   nothing can change it.
-- **In *Plages horaires* and *Synchronisé*, switching an output on or off does nothing and
-  reports an error.** The schedule owns the output in those two modes and the controller
-  defines no on/off there — change the mode first, with the mode selector.
+- **Some modes refuse a plain on/off, and say so.** The schedule owns the output in
+  *Plages horaires* and *Synchronisé*, the regulator owns it in *Régulé*, and the pH
+  corrector in *Manuel* can only be stopped — in each case the controller defines no such
+  command and the switch reports an error instead of sending one. Change the mode first,
+  with the mode selector.
 - **Water readings freeze while the filtration is off.** The controller does this on
   purpose — a measurement without circulation means nothing — so a sensor can sit hours
   behind. Compare the `Time` and `DirectTime` attributes to tell a settled reading from a
@@ -175,8 +179,8 @@ encoding as `mode`. **`newMode` is not optional**: whatever you send becomes the
 mode, so send the output's current mode unless you actually intend to change how it is
 driven.
 
-The two are not independent — each mode accepts only certain states, on lighting and the
-auxiliaries:
+The two are not independent — each mode accepts only certain states, and **the rules
+differ from one output to the next**. Lighting and the auxiliaries:
 
 | `newMode` | accepted `newState` |
 | --- | --- |
@@ -187,10 +191,26 @@ auxiliaries:
 | 6 Maintenance | 0 off, 1 on, 2 keep |
 | 8 Impulsion | 0 off, 1 on, 2 keep |
 
-`newState: 2` is the one every mode takes. Written rather than read it does not mean
-*unknown* but **"apply the mode and leave the output's state as it is"**, which is how a
-mode is changed without also commanding the output. On the filtration output it is not a
+The pH corrector:
+
+| `newMode` | accepted `newState` |
+| --- | --- |
+| 0 Manuel | 0 off **only** |
+| 2 Volume fixe | 0 off, 1 on, 2 keep |
+| 3 Régulé | 2 keep |
+
+Mode 2 is the same mechanism in both tables; the controller just calls it *Minuterie* on
+one and *Volume fixe* on the other.
+
+`newState: 2`, written rather than read, does not mean *unknown* but **"apply the mode and
+leave the output's state as it is"** — which is how a mode is changed without also
+commanding the output. Most modes take it; the pH corrector's *Manuel* does not, so
+selecting that mode necessarily stops the pump. On the filtration output it is not a
 sentinel at all — there 2 is speed 2.
+
+The remaining outputs (disinfectant, flocculant, heating) are listed as accepting modes 0
+and 3, but that list predates the per-output tables above and the pH corrector — covered
+by the same list — turned out to accept 0, 2 and 3. Treat it as unconfirmed.
 
 A write is not reflected in `GetPoolDetails.php` until the controller has polled, so expect
 a lag of seconds before a read confirms it.

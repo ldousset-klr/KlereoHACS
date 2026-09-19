@@ -45,10 +45,13 @@
   },
   "exceptions": {
     "out_read_only": {
-      "message": "{name} est en lecture seule pour l'instant : seuls l'éclairage et les auxiliaires sont pilotables depuis Home Assistant."
+      "message": "{name} est en lecture seule pour l'instant : seuls l'éclairage, les auxiliaires et le correcteur pH sont pilotables depuis Home Assistant."
     },
     "out_mode_no_switching": {
       "message": "{name} est en mode {mode}, qui n'accepte que l'état déjà en place sur le coffret : l'allumer ou l'éteindre n'y est pas défini. Change d'abord le mode."
+    },
+    "out_mode_ambiguous_state": {
+      "message": "{name} ne peut pas être mis en mode {mode} depuis Home Assistant : ce mode accepte plusieurs états et aucun ne laisse la sortie en l'état, il n'y a donc pas de choix sûr à faire à ta place."
     }
   }
 }

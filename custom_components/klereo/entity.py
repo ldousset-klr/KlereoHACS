@@ -2,7 +2,7 @@
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import DOMAIN
+from .const import DOMAIN, OUT_MODE_NAME_OVERRIDES, OUT_MODES
 
 
 def klereo_device_info(pool_data, poolid) -> DeviceInfo:
@@ -45,3 +45,17 @@ def klereo_io_names(pool_data, io_type):
         if name:
             names[entry.get("ioIndex")] = name
     return names
+
+
+def klereo_out_mode_name(index, mode):
+    """The name an out gives one of its modes, or None if the mode is reserved.
+
+    A mode number does not always carry the same label: mode 2 is "Minuterie"
+    on the switched outs and "Volume fixe" on the pH corrector, the two being
+    functionally identical. Everything user-facing goes through here rather
+    than reading OUT_MODES, so an out never shows another out's wording.
+    """
+    override = OUT_MODE_NAME_OVERRIDES.get(index)
+    if override and mode in override:
+        return override[mode]
+    return OUT_MODES.get(mode)

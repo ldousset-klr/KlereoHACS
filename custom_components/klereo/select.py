@@ -1,10 +1,12 @@
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (DOMAIN, ICON_OUT_MODE, OUT_LABELS, OUT_MODE_CHOICES,
-                    OUT_MODES, OUT_STATE_KEEP, WRITABLE_OUT_INDEXES)
-from .entity import IO_TYPE_OUT, klereo_device_info, klereo_io_names
+                    OUT_MODE_STATES, OUT_STATE_KEEP, WRITABLE_OUT_INDEXES)
+from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
+                     klereo_out_mode_name)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -35,8 +37,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class KlereoOutMode(CoordinatorEntity, SelectEntity):
     """An out's drive mode, read from `mode` and written as SetOut's newMode.
 
-    The write always carries OUT_STATE_KEEP as newState, so changing the mode
-    leaves the output driving whatever the controller had it driving.
+    The write carries OUT_STATE_KEEP as newState wherever the target mode
+    accepts it, so changing the mode leaves the output driving whatever the
+    controller had it driving. Where it does not — the pH corrector's Manuel,
+    which takes nothing but "off" — the mode change necessarily stops the
+    output, which is the firmware's own rule and not this entity's choice.
     """
 
     _attr_icon = ICON_OUT_MODE
@@ -53,10 +58,11 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
         base = (klereo_name or OUT_LABELS.get(self._index)
                 or f"klereo{poolid}out{self._index}")
         self._name = f"{base} mode"
-        # Offered in the firmware's own order, named from OUT_MODES.
+        # Offered in the firmware's own order, under this out's own wording.
         self._modes = {
-            OUT_MODES[mode]: mode
-            for mode in OUT_MODE_CHOICES[self._index] if mode in OUT_MODES
+            klereo_out_mode_name(self._index, mode): mode
+            for mode in OUT_MODE_CHOICES[self._index]
+            if klereo_out_mode_name(self._index, mode) is not None
         }
         self._attr_options = list(self._modes)
         # Optimistic value held between a write and the next successful poll.
@@ -92,7 +98,7 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
         out = self._out()
         if out is None:
             return None
-        option = OUT_MODES.get(out['mode'])
+        option = klereo_out_mode_name(self._index, out['mode'])
         if option not in self._attr_options:
             # A reserved or unexpected mode: report unknown rather than a value
             # Home Assistant would reject, and leave it alone.
@@ -102,12 +108,34 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
             return None
         return option
 
+    def _state_for(self, mode):
+        """The newState to send alongside a change to `mode`.
+
+        Keeping the output's state is preferred and almost always possible.
+        Where the mode forbids it and permits exactly one state instead — the
+        pH corrector's Manuel, which only stops the pump — that state is the
+        only thing the firmware will take, so it is what goes. A mode offering
+        several states but not OUT_STATE_KEEP has never been described; refuse
+        rather than pick one on the user's behalf.
+        """
+        states = OUT_MODE_STATES[self._index][mode]
+        if OUT_STATE_KEEP in states:
+            return OUT_STATE_KEEP
+        if len(states) == 1:
+            return states[0]
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="out_mode_ambiguous_state",
+            translation_placeholders={"name": self._name, "mode": str(mode)},
+        )
+
     async def async_select_option(self, option: str) -> None:
         mode = self._modes[option]
-        LOGGER.debug("Setting mode of #%s out%s to %s (%s)",
-                     self._poolid, self._index, mode, option)
+        state = self._state_for(mode)
+        LOGGER.debug("Setting mode of #%s out%s to %s (%s), state=%s",
+                     self._poolid, self._index, mode, option, state)
         await self.hass.async_add_executor_job(
-            self._api.set_out, self._index, OUT_STATE_KEEP, mode
+            self._api.set_out, self._index, state, mode
         )
         self._optimistic_mode = option
         self.async_write_ha_state()

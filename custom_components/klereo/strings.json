@@ -45,10 +45,13 @@
   },
   "exceptions": {
     "out_read_only": {
-      "message": "{name} is read-only for now: only lighting and auxiliary outputs can be driven from Home Assistant."
+      "message": "{name} is read-only for now: only lighting, the auxiliaries and the pH corrector can be driven from Home Assistant."
     },
     "out_mode_no_switching": {
       "message": "{name} is in {mode} mode, which only accepts the state the controller already has: switching it on or off there is not defined. Change the mode first."
+    },
+    "out_mode_ambiguous_state": {
+      "message": "{name} cannot be set to mode {mode} from Home Assistant: that mode accepts several states and none of them leaves the output as it is, so there is no safe choice to make on your behalf."
     }
   }
 }

@@ -9,13 +9,13 @@ from .const import (
     OUT_ICONS,
     OUT_LABELS,
     OUT_MODE_STATES,
-    OUT_MODES,
     WRITABLE_OUT_INDEXES,
     OUT_STATUS_OFF,
     OUT_STATUS_ON,
     OUT_STATUS_UNKNOWN,
 )
-from .entity import IO_TYPE_OUT, klereo_device_info, klereo_io_names
+from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
+                     klereo_out_mode_name)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
                     'Type': out['type'],
                     'Mode': out['mode'],
                     # Reserved values have no name; the raw number stays above.
-                    'ModeName': OUT_MODES.get(out['mode']),
+                    'ModeName': klereo_out_mode_name(self._index, out['mode']),
                     'RealStatus': out['realStatus'],
                 }
         return None
@@ -132,14 +132,14 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
             )
         out = self._out()
         mode = out['mode'] if out else None
-        if state not in OUT_MODE_STATES.get(mode, ()):
+        if state not in OUT_MODE_STATES.get(self._index, {}).get(mode, ()):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="out_mode_no_switching",
                 translation_placeholders={
                     "name": self._name,
                     # Reserved modes have no name; show the raw number then.
-                    "mode": OUT_MODES.get(mode, str(mode)),
+                    "mode": klereo_out_mode_name(self._index, mode) or str(mode),
                 },
             )
         return mode

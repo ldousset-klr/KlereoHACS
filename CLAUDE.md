@@ -113,12 +113,13 @@ credential disclosure, not just a connection failure.
   and 3 have been seen and **0 is a real answer, not a missing one** — only an absent or
   non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
-- `select.py` — one entity per writable out, its drive mode. Offered only where both
-  facts are known: that Home Assistant may write the out at all (`WRITABLE_OUT_INDEXES`)
-  and which modes the firmware permits on it (`OUT_MODE_CHOICES`) — so lighting and the
-  auxiliaries have one, and the filtration, the regulated outs and hybrid chlorine do not.
-  The write sends `OUT_STATE_KEEP` as `newState`, so **changing the mode never changes what
-  the output is doing**. `current_option` returns `None` rather than a name when the out
+- `select.py` — one entity per writable out, its drive mode. Offered exactly where the
+  out's permitted states are known (`OUT_MODE_STATES`, which `WRITABLE_OUT_INDEXES` is
+  derived from) — so lighting, the auxiliaries and the pH corrector have one, and the
+  filtration, the other regulated outs and hybrid chlorine do not. The write sends
+  `OUT_STATE_KEEP` as `newState` **wherever the target mode accepts it**, so changing the
+  mode normally leaves the output doing what it was doing; the pH corrector's Manuel is the
+  exception, taking only "off", so selecting it stops the dosing. `current_option` returns `None` rather than a name when the out
   carries a mode outside its permitted list: a reserved value must be left alone, and Home
   Assistant rejects a state that is not among the options anyway.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
@@ -210,26 +211,42 @@ outputs for which 2 is not even permitted. `set_out()` now takes it explicitly a
 default; the switch and the speed entity pass the out's *current* mode through, so a write
 changes the state and nothing else.
 
-**The two fields are not independent**: `OUT_MODE_STATES` lists what `newState` may carry
-in each mode, as supplied by the codeowner for lighting and the auxiliaries. `2` —
-`OUT_STATE_KEEP`, the same number that reads back as *unknown* — means "apply the mode and
-leave the output's state alone", and **every mode accepts it**; that is what makes a mode
-change possible without also commanding the output. Manuel, Minuterie, Maintenance and
-Impulsion additionally take `0` and `1`. **Plages horaires and Synchronisé take nothing
-else**, the schedule owning the output there, so `KlereoOut._writable_mode()` refuses a
-turn_on/turn_off in those two with the `out_mode_no_switching` key rather than sending a
-combination the firmware does not define. The filtration is the exception to all of it:
-there `2` is speed 2, not a sentinel, so `OUT_STATE_KEEP` must never be written to out 1. **That is the codeowner's decision, not a fallback**:
+**The two fields are not independent**, and **the rules differ per output**:
+`OUT_MODE_STATES` is keyed by out index, then by mode, and the codeowner supplies it one
+output family at a time. The same mode number does not take the same states everywhere.
+
+`2` — `OUT_STATE_KEEP`, the same number that reads back as *unknown* — usually means
+"apply the mode and leave the output's state alone", which is what makes a mode change
+possible without also commanding the output. On the **switched outs** (lighting and the
+auxiliaries) every mode accepts it; Manuel, Minuterie, Maintenance and Impulsion take `0`
+and `1` as well, while **Plages horaires and Synchronisé take nothing else**, the schedule
+owning the output there.
+
+The **pH corrector** (index 2) breaks the pattern twice. Its Manuel accepts **only `0`**:
+a dosing pump put back under manual control is stopped, it cannot be commanded on and it
+cannot keep its state — so selecting Manuel there does stop the dosing, which is the
+firmware's rule and not the integration's choice. `KlereoOutMode._state_for()` therefore
+sends `OUT_STATE_KEEP` where the mode permits it and the mode's single permitted state
+where it does not; a mode offering several states but not `OUT_STATE_KEEP` has never been
+described, and raises `out_mode_ambiguous_state` rather than guessing. Its mode 2 is also
+named **"Volume fixe"** rather than "Minuterie" — functionally identical, the codeowner
+confirmed, only the label differs.
+
+`KlereoOut._writable_mode()` refuses a turn_on/turn_off the out's current mode does not
+accept, with the `out_mode_no_switching` key, rather than sending a combination the
+firmware does not define. The filtration is the exception to all of it: there `2` is
+speed 2, not a sentinel, so `OUT_STATE_KEEP` must never be written to out 1. **That is the codeowner's decision, not a fallback**:
 forcing `0` (Manuel) would make a switch behave the way people expect, but it would also
 pull the pH corrector, the disinfectant or the heater out of regulation and disturb the
 water treatment. The accepted cost is that toggling a regulated output may appear to do
 nothing, the regulator still owning its state — so don't "fix" an inert switch on such an
 output by writing a mode.
 
-**Only lighting (index 0) and the auxiliaries (5-7, 9-14) may be written**, per
-`WRITABLE_OUT_INDEXES`. Filtration, pH, disinfectant, heating, flocculant and hybrid
-chlorine are read-only until the codeowner specifies how `SetOut` should be called on
-them. Their entities still exist and still report state; a turn_on/turn_off raises
+**Only lighting (index 0), the auxiliaries (5-7, 9-14) and the pH corrector (2) may be
+written**: `WRITABLE_OUT_INDEXES` is now *derived* from `OUT_MODE_STATES`, so an output
+becomes writable exactly when its permitted states arrive and the two can never drift
+apart. Filtration, disinfectant, heating, flocculant and hybrid chlorine are read-only
+until the codeowner specifies how `SetOut` should be called on them. Their entities still exist and still report state; a turn_on/turn_off raises
 `ServiceValidationError` with the `out_read_only` key, which lives in the `exceptions`
 section of `strings.json` and both translations. **This also makes the filtration speed
 entity read-only**, since it writes out 1 — it reports the speed and refuses to set it,
@@ -237,18 +254,23 @@ which is odd for a `number` but avoids churning the entity's domain twice when t
 restriction lifts.
 
 `OUT_MODE_CHOICES` lists, per out index, the modes the firmware permits: lighting and
-auxiliaries take 0/1/2/4/6/8, and the regulated outputs (pH, disinfectant, flocculant,
-heating) take 0/3 only. Values outside those lists are reserved and must be left alone
+auxiliaries take 0/1/2/4/6/8, the pH corrector takes 0/2/3, and the remaining regulated
+outputs (disinfectant, flocculant, heating) take 0/3 only. Where the states are known it
+is *derived* from `OUT_MODE_STATES`; the rest keep an explicit list, enough to name a mode
+but not to write one. Mode names go through `entity.klereo_out_mode_name()`, never
+`OUT_MODES` directly, since a mode's label can depend on the output. Values outside those lists are reserved and must be left alone
 where an out already carries one. Filtration (index 1) and hybrid chlorine (15) have no
 entry: their permitted lists were never supplied, and 0/1/3 and 2/3 have only been
 *observed*, which is not the same thing.
 
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- Nothing exposes an out's mode on the read-only outputs: the regulated ones (pH,
-  disinfectant, flocculant, heating) carry `OUT_MODE_CHOICES` entries of `(0, 3)` but get
-  no `select`, since `WRITABLE_OUT_INDEXES` still refuses every write on them. The mode is
-  visible as the switch's `Mode`/`ModeName` attributes only.
+- Nothing exposes an out's mode on the read-only outputs: disinfectant, flocculant and
+  heating carry `OUT_MODE_CHOICES` entries of `(0, 3)` but no `OUT_MODE_STATES`, so they
+  get no `select` and no write. The mode is visible as the switch's `Mode`/`ModeName`
+  attributes only. Their `(0, 3)` list was supplied before the per-output state rules
+  existed, and the pH corrector — which that list also covered — turned out to take
+  `(0, 2, 3)`, so treat the remaining three as unconfirmed.
 
 ### Shape of the `GetIndex.php` payload
 
