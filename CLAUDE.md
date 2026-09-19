@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Home Assistant custom integration (distributed via HACS) for Klereo swimming pool
 controllers. The component lives in `custom_components/klereo/` and is copied as-is to
-the same path under the Home Assistant host's `config/`. The root holds only `README.md`,
-`hacs.json` (HACS reads it there, never inside the component) and `icon.png`. There is no
+the same path under the Home Assistant host's `config/`. The root holds `README.md`,
+`hacs.json` (HACS reads it there, never inside the component), `LICENSE`, `icon.png` and
+`.github/workflows/`. There is no
 build system, no test suite, and no lint/CI configuration.
 
 All source paths below are relative to `custom_components/klereo/`.
