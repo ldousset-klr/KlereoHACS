@@ -187,6 +187,16 @@ water treatment. The accepted cost is that toggling a regulated output may appea
 nothing, the regulator still owning its state — so don't "fix" an inert switch on such an
 output by writing a mode.
 
+**Only lighting (index 0) and the auxiliaries (5-7, 9-14) may be written**, per
+`WRITABLE_OUT_INDEXES`. Filtration, pH, disinfectant, heating, flocculant and hybrid
+chlorine are read-only until the codeowner specifies how `SetOut` should be called on
+them. Their entities still exist and still report state; a turn_on/turn_off raises
+`ServiceValidationError` with the `out_read_only` key, which lives in the `exceptions`
+section of `strings.json` and both translations. **This also makes the filtration speed
+entity read-only**, since it writes out 1 — it reports the speed and refuses to set it,
+which is odd for a `number` but avoids churning the entity's domain twice when the
+restriction lifts.
+
 `OUT_MODE_CHOICES` lists, per out index, the modes the firmware permits: lighting and
 auxiliaries take 0/1/2/4/6/8, and the regulated outputs (pH, disinfectant, flocculant,
 heating) take 0/3 only. Values outside those lists are reserved and must be left alone

@@ -1,5 +1,6 @@
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
@@ -7,6 +8,7 @@ from .const import (
     FILTRATION_OUT_INDEX,
     OUT_LABELS,
     OUT_MODES,
+    WRITABLE_OUT_INDEXES,
     OUT_STATUS_OFF,
     OUT_STATUS_ON,
     OUT_STATUS_UNKNOWN,
@@ -110,13 +112,23 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
                 }
         return None
 
+    def _writable_mode(self):
+        """The mode to write back, or raise if this out is not writable."""
+        if self._index not in WRITABLE_OUT_INDEXES:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="out_read_only",
+                translation_placeholders={"name": self._name},
+            )
+        out = self._out()
+        return out['mode'] if out else None
+
     async def async_turn_on(self, **kwargs):
         # Carry the out's current mode through, by the codeowner's decision:
         # writing 0 (Manuel) would pull a regulated output out of regulation.
         # The cost is that toggling such an output may look inert, the
         # regulator still owning its state.
-        out = self._out()
-        mode = out['mode'] if out else None
+        mode = self._writable_mode()
         await self.hass.async_add_executor_job(
             self._api.turn_on_device, self._index, mode
         )
@@ -125,8 +137,7 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs):
-        out = self._out()
-        mode = out['mode'] if out else None
+        mode = self._writable_mode()
         await self.hass.async_add_executor_job(
             self._api.turn_off_device, self._index, mode
         )

@@ -1,8 +1,10 @@
 from homeassistant.components.number import NumberEntity
 from homeassistant.core import callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, FILTRATION_OUT_INDEX, MAX_PUMP_SPEED, OUT_LABELS
+from .const import (DOMAIN, FILTRATION_OUT_INDEX, MAX_PUMP_SPEED, OUT_LABELS,
+                    WRITABLE_OUT_INDEXES)
 from .entity import IO_TYPE_OUT, klereo_device_info, klereo_io_names
 
 import logging
@@ -87,6 +89,14 @@ class KlereoFiltrationSpeed(CoordinatorEntity, NumberEntity):
         return None
 
     async def async_set_native_value(self, value: float) -> None:
+        if FILTRATION_OUT_INDEX not in WRITABLE_OUT_INDEXES:
+            # The filtration is read-only for now, so this entity reports the
+            # speed but cannot set it.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="out_read_only",
+                translation_placeholders={"name": self._name},
+            )
         speed = int(value)
         LOGGER.debug(f"Setting filtration speed of #{self._poolid} to {speed}")
         mode = None

@@ -187,3 +187,10 @@ OUT_MODE_CHOICES = {
     13: _MODES_SWITCHED,
     14: _MODES_SWITCHED,
 }
+
+# Outs Home Assistant may write to, for now: lighting and the auxiliaries —
+# exactly the group that takes the _MODES_SWITCHED list above. Everything else
+# (filtration, pH, disinfectant, heating, flocculant, hybrid chlorine) is
+# read-only until the codeowner specifies how SetOut should be called on them;
+# their entities still exist and still report state.
+WRITABLE_OUT_INDEXES = frozenset({0, 5, 6, 7, 9, 10, 11, 12, 13, 14})

@@ -42,5 +42,10 @@
       "already_configured": "This pool is already configured.",
       "no_pools": "This account has no pool."
     }
+  },
+  "exceptions": {
+    "out_read_only": {
+      "message": "{name} is read-only for now: only lighting and auxiliary outputs can be driven from Home Assistant."
+    }
   }
 }

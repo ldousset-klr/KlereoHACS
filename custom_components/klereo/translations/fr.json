@@ -42,5 +42,10 @@
       "already_configured": "Cette piscine est déjà configurée.",
       "no_pools": "Ce compte ne comporte aucune piscine."
     }
+  },
+  "exceptions": {
+    "out_read_only": {
+      "message": "{name} est en lecture seule pour l'instant : seuls l'éclairage et les auxiliaires sont pilotables depuis Home Assistant."
+    }
   }
 }
