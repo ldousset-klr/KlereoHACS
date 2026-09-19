@@ -3,6 +3,7 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from datetime import timedelta
 from requests import RequestException
@@ -15,9 +16,10 @@ LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor", "switch", "number"]
 
-async def async_setup(hass: HomeAssistant, config: dict):
-    LOGGER.info("Initializing %s integration...",DOMAIN)
-    return True
+# There is nothing to set up from YAML: the integration is config-entry only.
+# Declaring it makes Home Assistant reject a klereo: block with a clear message,
+# and replaces the async_setup stub that only logged.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     

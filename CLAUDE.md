@@ -20,6 +20,14 @@ restart HA, add the integration via the UI config flow (username / password / po
 and read the logs. Everything logs through `logging.getLogger(__name__)` at INFO/DEBUG, so raise the
 `custom_components.klereo` logger to `debug` in `configuration.yaml` when debugging.
 
+`.github/workflows/validate.yml` runs **hassfest** and the **HACS action** on every push
+to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
+`domain`, `name`, then alphabetical, and an integration defining `async_setup` must also
+define a `CONFIG_SCHEMA` — this one has neither, being config-entry only, and declares
+`cv.config_entry_only_config_schema(DOMAIN)`. The HACS action additionally requires the
+repository itself to carry a description, topics and a license, none of which live in the
+tree. Its `brands` check is ignored until the logo is submitted.
+
 Bump `version` in `manifest.json` when publishing a release that HACS should pick up.
 `hacs.json` declares the minimum Home Assistant version (2024.11.0, set by the
 `config_entry` argument the coordinator is built with — it was added in that release and
