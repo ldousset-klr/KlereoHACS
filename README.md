@@ -1,25 +1,181 @@
-# Home Assistant HACS integration for KLEREO swimmingpools
+# Klereo for Home Assistant
 
-Install in:  config/custom_components/klereo
+Unofficial Home Assistant integration for Klereo swimming pool controllers. It polls the
+Klereo Connect cloud and exposes a pool's probes, outputs and filtration speed as entities.
 
-Connect using your klereo credentials
+Requires **Home Assistant 2024.11 or later**.
 
-Get your **poolID** using browser debug 
+## What you get
 
-# Todo
+One device per pool, named after its Klereo nickname, carrying:
 
-API doc
+- **A sensor per probe** — water and air temperature, pH, redox, pressure, flow, canister
+  levels, cover position, salinity, alkalinity, chlorine. Each is published with the unit
+  its type actually calls for, taken from the controller's own sensor table.
+- **A switch per output** — lighting, filtration, pH corrector, disinfectant, heating and
+  the auxiliaries.
+- **The filtration speed**, on pools whose pump has more than one.
+- **Diagnostic sensors** for the registration PIN and the device slot on the pod.
 
-Expose more swimming pool infos
+Entities are named after the names you set in Klereo. Anything you never renamed falls
+back to the controller's own name for that slot — *Température eau*, *Capteur pH*,
+*Filtration* — rather than an opaque index.
 
-Auto rename sensors and switches with default Klereo names 
+Data refreshes every 5 minutes.
 
-retrieve **poolID** from https://connect.klereo.fr/php/GetIndex.php
+## Installation
 
+**Via HACS** — add this repository as a custom repository (category: *Integration*),
+install it, then restart Home Assistant.
 
-**Disclaimer**
+**Manually** — copy `custom_components/klereo/` into your Home Assistant
+`config/custom_components/` directory, then restart Home Assistant.
+
+## Configuration
+
+Add the integration from *Settings > Devices & Services > Add Integration > Klereo*,
+enter your Klereo credentials, and pick your pool from the list. Nothing else is needed:
+the pool ID is read from your account.
+
+Add the integration again to set up a second pool.
+
+If the pool list cannot be retrieved, setup falls back to asking for the **poolID**, which
+you can read from https://connect.klereo.fr/php/GetIndex.php
+
+The *Server* field on the first screen exists for testing against another Klereo instance.
+Leave it alone unless you know why you are changing it — **your credentials are sent to
+whatever address it holds**.
+
+## Current limitations
+
+- **Only lighting and auxiliary outputs can be switched.** Filtration, pH corrector,
+  disinfectant, heating, flocculant and hybrid chlorine report their state but refuse to
+  be driven, until the write semantics for them are settled. That also makes the
+  filtration speed read-only for now.
+- **An output's mode is read-only.** It is visible as an entity attribute (*Manuel*,
+  *Plages horaires*, *Régulé*…) but nothing can change it.
+- **Water readings freeze while the filtration is off.** The controller does this on
+  purpose — a measurement without circulation means nothing — so a sensor can sit hours
+  behind. Compare the `Time` and `DirectTime` attributes to tell a settled reading from a
+  stale one.
+- The integration has no logo in Home Assistant yet; it is pending submission to the
+  `home-assistant/brands` repository.
+
+## The Klereo Connect API
+
+Undocumented and unofficial — everything below was established from live captures and from
+the firmware's own enums. **Klereo may change it without notice.**
+
+Base URL `https://connect.klereo.fr/php`. Every call is a `POST` with form-encoded
+parameters, and every response is JSON.
+
+### Authenticating
+
+`GetJWT.php` takes the credentials and returns a bearer token:
+
+| parameter | value |
+|---|---|
+| `login` | account name |
+| `password` | **SHA-1 of the password, lowercase hex** — never the password itself |
+| `version` | client version string, e.g. `100-HA` |
+| `app` | `api` |
+
+```bash
+JWT=$(curl -s -X POST https://connect.klereo.fr/php/GetJWT.php \
+  -d "login=$USER" \
+  -d "password=$(printf '%s' "$PASSWORD" | sha1sum | cut -d' ' -f1)" \
+  -d "version=100-HA&app=api" | python3 -c 'import sys,json;print(json.load(sys.stdin)["jwt"])')
+```
+
+Every other call carries `Authorization: Bearer <jwt>`. The token's lifetime is not
+documented; treat a 401 or 403 as "renew and retry once".
+
+### Endpoints
+
+| endpoint | parameters | returns |
+|---|---|---|
+| `GetJWT.php` | see above | `{"jwt": "…"}` |
+| `GetIndex.php` | none | every system the account can see |
+| `GetPoolDetails.php` | `poolID`, `lang` | one system in full |
+| `SetOut.php` | `poolID`, `outIdx`, `newMode`, `newState` | acknowledgement |
+
+### Response envelope
+
+```json
+{"status": "ok", "response": [ … ]}
+```
+
+`response` is always a list, even for a single system. **A failure can arrive with HTTP
+200** and a `status` other than `ok`, so the status code alone is not enough to tell
+success from failure.
+
+`GetIndex.php` returns one entry per system with `idSystem`, `poolNickname`, `suspended`,
+`access` and a summary. `GetPoolDetails.php` returns one entry, the whole system.
+
+### `probes[]`
+
+| field | meaning |
+|---|---|
+| `index` | probe slot, 0-31; the slot determines what the probe is for |
+| `type` | sensor type, see below |
+| `filteredValue` | the smoothed reading — **what you should display** |
+| `filteredTime` | age of that reading |
+| `directValue` / `directTime` | the raw reading and its age |
+
+`filteredValue` freezes while the filtration is off, by design: a water measurement
+without circulation is meaningless. It can then sit hours behind `directValue`. A value of
+**`-1000` means the probe is absent or unreadable**, not a measurement.
+
+`type` follows the firmware's `e_TypeCapteurs`:
+
+| | | | | | |
+|---|---|---|---|---|---|
+| 0 plant room °C | 1 air °C | 2 level % | 3 pH | 4 redox mV | 5 water °C |
+| 6 pressure mbar | 7 TAC/TH °f | 8 salinity g/L | 9 turbidity | 10 generic | 11 flow m³/h |
+| 12 canister % | 13 cover % | 14 chlorine mg/L | 15 unknown | | |
+
+Types 9, 10 and 15 carry no unit: the controller does not know the quantity. Type 7 covers
+both alkalinity and hardness without distinguishing them.
+
+### `outs[]`
+
+| field | meaning |
+|---|---|
+| `index` | output slot, 0-15; **the slot is the role** |
+| `status` | see below — *not* a boolean |
+| `realStatus` | the state actually reached |
+| `mode` | how the output is driven |
+
+Roles by index: 0 lighting, 1 filtration, 2 pH corrector, 3 disinfectant, 4 heating,
+5-7 and 9-14 auxiliaries, 8 flocculant, 15 hybrid chlorine.
+
+`status` means different things depending on the output:
+
+- **on the filtration**, a variable-speed index from 0 (stopped) to 7;
+- **on every other output**, `0` off, `1` on, **`2` unknown**.
+
+`mode`: 0 Manuel, 1 Plages horaires, 2 Minuterie, 3 Régulé, 4 Synchronisé, 6 Maintenance,
+8 Impulsion. Other values are reserved and must be left alone where an output carries one.
+Lighting and auxiliaries accept 0/1/2/4/6/8; the regulated outputs (pH, disinfectant,
+flocculant, heating) accept 0 and 3 only.
+
+### Writing
+
+`SetOut.php` takes `newState` in the same encoding as `status`, and `newMode` in the same
+encoding as `mode`. **`newMode` is not optional**: whatever you send becomes the output's
+mode, so send the output's current mode unless you actually intend to change how it is
+driven.
+
+A write is not reflected in `GetPoolDetails.php` until the controller has polled, so expect
+a lag of seconds before a read confirms it.
+
+## Todo
+
+- Expose more pool information
+- A mode selector for the outputs that allow one
+
+## Disclaimer
 
 This integration developed for Home Assistant via HACS (Home Assistant Community Store) is provided **as-is**, without any warranties or guarantees of any kind, expressed or implied. Klereo and its developers cannot be held responsible for any damage, malfunction, or issues arising from the installation or usage of this integration.
 
 Use of this integration is at your own risk. It is recommended to back up your Home Assistant configuration before installation. The integration is community-driven and is **not officially endorsed or supported by Klereo**.
-

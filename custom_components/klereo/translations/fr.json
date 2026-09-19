@@ -1,0 +1,51 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Klereo Connect",
+        "description": "Connectez-vous avec vos identifiants Klereo.",
+        "data": {
+          "username": "Identifiant",
+          "password": "Mot de passe",
+          "server": "Serveur (à ne changer que pour tester)"
+        }
+      },
+      "pool": {
+        "title": "Klereo Connect",
+        "description": "Choisissez la piscine à ajouter.",
+        "data": {
+          "poolid": "Piscine"
+        }
+      },
+      "manual": {
+        "title": "Klereo Connect",
+        "description": "La liste des piscines n'a pas pu être récupérée. Saisissez le numéro de piscine.",
+        "data": {
+          "poolid": "Numéro de piscine"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Klereo Connect",
+        "description": "Klereo a refusé les identifiants enregistrés. Merci de les saisir à nouveau.",
+        "data": {
+          "username": "Identifiant",
+          "password": "Mot de passe"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Identifiant, mot de passe ou numéro de piscine incorrect.",
+      "cannot_connect": "Serveur Klereo injoignable."
+    },
+    "abort": {
+      "reauth_successful": "Ré-authentification réussie.",
+      "already_configured": "Cette piscine est déjà configurée.",
+      "no_pools": "Ce compte ne comporte aucune piscine."
+    }
+  },
+  "exceptions": {
+    "out_read_only": {
+      "message": "{name} est en lecture seule pour l'instant : seuls l'éclairage et les auxiliaires sont pilotables depuis Home Assistant."
+    }
+  }
+}

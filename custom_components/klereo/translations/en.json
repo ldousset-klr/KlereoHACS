@@ -1,0 +1,51 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Klereo Connect",
+        "description": "Sign in with your Klereo credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "server": "Server (leave as is unless testing)"
+        }
+      },
+      "pool": {
+        "title": "Klereo Connect",
+        "description": "Choose the pool to add.",
+        "data": {
+          "poolid": "Pool"
+        }
+      },
+      "manual": {
+        "title": "Klereo Connect",
+        "description": "The list of pools could not be retrieved. Enter the pool ID.",
+        "data": {
+          "poolid": "Pool ID"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Klereo Connect",
+        "description": "Klereo rejected the stored credentials. Please enter them again.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password, or unknown pool ID.",
+      "cannot_connect": "Could not reach the Klereo server."
+    },
+    "abort": {
+      "reauth_successful": "Re-authentication was successful.",
+      "already_configured": "This pool is already configured.",
+      "no_pools": "This account has no pool."
+    }
+  },
+  "exceptions": {
+    "out_read_only": {
+      "message": "{name} is read-only for now: only lighting and auxiliary outputs can be driven from Home Assistant."
+    }
+  }
+}
