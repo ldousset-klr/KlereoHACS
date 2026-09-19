@@ -245,10 +245,12 @@ The integration's **logo** lives in `custom_components/klereo/brand/`. Since Hom
 Assistant 2026.3 a custom integration ships its own brand images there and they take
 priority over the CDN; `home-assistant/brands` no longer accepts custom integrations, so
 `ignore: brands` in the workflow is permanent rather than pending a submission. Supported
-names are `icon.png`, `logo.png`, their `@2x` variants and a `dark_` prefix for each; only
-`icon.png` (256x256 RGBA) is present. Releases before 2026.3 ignore the directory and show
-a placeholder. Entity icons are a separate mechanism entirely, see
-`PROBE_ICONS`/`OUT_ICONS`.
+names are `icon.png`, `logo.png`, their `@2x` variants and a `dark_` prefix for each;
+`icon.png` (256x256) and `icon@2x.png` (512x512) are present, the first downscaled from
+the second so the two frame the artwork identically — Home Assistant picks one by display
+density, and a separately exported pair made the logo change size between them. Releases
+before 2026.3 ignore the directory and show a placeholder. Entity icons are a separate
+mechanism entirely, see `PROBE_ICONS`/`OUT_ICONS`.
 
 The README carries a disclaimer that the integration is
 community-driven and **not officially endorsed or supported by Klereo** — keep that framing
