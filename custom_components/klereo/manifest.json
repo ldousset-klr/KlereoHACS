@@ -1,6 +1,6 @@
 {
     "domain": "klereo",
-    "name": "Klereo Connect Integration",
+    "name": "Klereo",
     "version": "1.0.0",
     "requirements": ["requests"],
     "dependencies": [],
