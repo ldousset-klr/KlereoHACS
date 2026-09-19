@@ -15,15 +15,19 @@ One device per pool, named after its Klereo nickname, carrying:
   its type actually calls for, taken from the controller's own sensor table.
 - **A switch per output** — lighting, filtration, pH corrector, disinfectant, heating and
   the auxiliaries.
-- **The filtration speed**, on pools whose pump has more than one.
+- **The filtration speed**, on pools whose pump has more than one. Settable while the
+  filtration is in *Manuel*; in the other modes the schedule or the regulator owns the
+  pump and the control says so rather than sending a value the controller would read as
+  something else.
 - **A mode selector** on each output you can drive, offering what that particular output
   accepts: *Manuel*, *Plages horaires*, *Minuterie*, *Synchronisé*, *Maintenance* and
-  *Impulsion* on lighting and the auxiliaries; *Manuel*, *Volume fixe* and *Régulé* on the
-  pH corrector and *Manuel* and *Volume fixe* on the flocculant; *Manuel* and *Régulé* on
-  a heater, or *Manuel*, *Auto*, *Refroidit* and *Réchauffe* when the heating output drives
-  a Klereo heat pump. Changing the mode leaves the output doing whatever it was doing —
-  except *Manuel* on the dosing pumps and on the heating, which stop them, the controller
-  allowing nothing else there.
+  *Impulsion* on lighting and the auxiliaries; *Manuel*, *Plages horaires*, *Régulé* and
+  *Maintenance* on the filtration; *Manuel*, *Volume fixe* and *Régulé* on the pH corrector
+  and *Manuel* and *Volume fixe* on the flocculant; *Manuel* and *Régulé* on a heater, or
+  *Manuel*, *Auto*, *Refroidit* and *Réchauffe* when the heating output drives a Klereo
+  heat pump. Changing the mode leaves the output doing whatever it was doing — including
+  the filtration, which keeps its speed — except *Manuel* on the dosing pumps and on the
+  heating, which stop them, the controller allowing nothing else there.
 - **Diagnostic sensors** for the registration PIN and the device slot on the pod.
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
@@ -57,11 +61,12 @@ whatever address it holds**.
 
 ## Current limitations
 
-- **Only lighting, the auxiliaries, the pH corrector, the flocculant and the heating can
-  be driven.** Filtration, disinfectant and hybrid chlorine report their state but refuse
-  to be written, until the rules for them are settled. That also makes the filtration speed
-  read-only for now. The heating joins them when the controller does not say what it drives
-  — a pool with no heating, or one whose `HeaterMode` the integration does not recognise.
+- **The disinfectant and hybrid chlorine cannot be driven.** They report their state but
+  refuse to be written, until the rules for them are settled. The heating joins them when
+  the controller does not say what it drives — a pool with no heating, or one whose
+  `HeaterMode` the integration does not recognise.
+- **Turning the filtration on from the switch runs it at speed 1.** Use the speed control
+  for anything faster; the switch has no way to express a speed.
 - **The mode selector only covers the outputs you can switch.** On the others the mode is
   still visible as an entity attribute (*Manuel*, *Plages horaires*, *Régulé*…) but
   nothing can change it.
@@ -221,11 +226,23 @@ The heating output, where `params.HeaterMode` decides which of the two applies:
 *Réchauffe* on a heat pump: the same number on the same output, named by what it is wired
 to.
 
+And the filtration, where `newState` changes meaning from one mode to the next:
+
+| `newMode` | accepted `newState` |
+| --- | --- |
+| 0 Manuel | 0 stopped, 1..`PumpMaxSpeed` — a **speed index** |
+| 1 Plages horaires | 2 keep |
+| 3 Régulé | 2 keep |
+| 6 Maintenance | 0 off, 1 on |
+
 `newState: 2`, written rather than read, does not mean *unknown* but **"apply the mode and
 leave the output's state as it is"** — which is how a mode is changed without also
-commanding the output. Most modes take it; the pH corrector's *Manuel* does not, so
-selecting that mode necessarily stops the pump. On the filtration output it is not a
-sentinel at all — there 2 is speed 2.
+commanding the output. Most modes take it; the dosing pumps' and the heating's *Manuel* do
+not, so selecting that mode necessarily stops them.
+
+**On the filtration the same 2 means three different things**: keep in *Plages horaires*
+and *Régulé*, **speed 2** in *Manuel*, and nothing at all in *Maintenance*, which does not
+accept it. Only the mode tells them apart, so read the table above rather than assuming.
 
 The disinfectant is listed as accepting modes 0 and 3, but that list predates the
 per-output tables above, and the two outputs it also covered — the pH corrector and the

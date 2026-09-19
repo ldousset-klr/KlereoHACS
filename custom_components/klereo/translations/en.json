@@ -52,6 +52,9 @@
     },
     "out_mode_ambiguous_state": {
       "message": "{name} cannot be set to mode {mode} from Home Assistant: that mode accepts several states and none of them leaves the output as it is, so there is no safe choice to make on your behalf."
+    },
+    "out_speed_not_settable": {
+      "message": "{name} cannot be set while the output is in {mode}: only Manuel takes a speed. Change the mode first."
     }
   }
 }

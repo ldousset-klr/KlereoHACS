@@ -3,7 +3,7 @@ from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ICON_OUT_MODE, OUT_LABELS, OUT_STATE_KEEP
+from .const import DOMAIN, ICON_OUT_MODE, OUT_LABELS
 from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
                      klereo_out_mode_name, klereo_out_mode_states)
 
@@ -115,22 +115,36 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
     def _state_for(self, mode):
         """The newState to send alongside a change to `mode`.
 
-        Keeping the output's state is preferred and almost always possible.
-        Where the mode forbids it and permits exactly one state instead — the
-        pH corrector's Manuel, which only stops the pump — that state is the
-        only thing the firmware will take, so it is what goes. A mode offering
-        several states but not OUT_STATE_KEEP has never been described; refuse
-        rather than pick one on the user's behalf.
+        Leaving the output's state alone is what a mode change should do, and
+        `rule.keep` says how — never the bare presence of a 2 in the permitted
+        list, which on the filtration's Manuel means speed 2 and would start
+        the pump.
+
+        Where the mode has no keep value, three cases in order. It may permit
+        exactly one state, as the dosing pumps' and the heating's Manuel do,
+        stopping the output: that is the only thing the firmware takes, so it
+        is what goes. It may permit several, as the filtration's Manuel does —
+        then the out's current status already *is* the state to hold, and it
+        goes back unchanged. Otherwise there is nothing to send that would not
+        be a guess, so refuse.
         """
-        states = self._states[mode]
-        if OUT_STATE_KEEP in states:
-            return OUT_STATE_KEEP
-        if len(states) == 1:
-            return states[0]
+        rule = self._states[mode]
+        if rule.keep is not None:
+            return rule.keep
+        if len(rule.states) == 1:
+            return rule.states[0]
+        out = self._out()
+        status = out['status'] if out else None
+        if status in rule.states:
+            return status
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="out_mode_ambiguous_state",
-            translation_placeholders={"name": self._name, "mode": str(mode)},
+            translation_placeholders={
+                "name": self._name,
+                "mode": klereo_out_mode_name(self.coordinator.data,
+                                             self._index, mode) or str(mode),
+            },
         )
 
     async def async_select_option(self, option: str) -> None:

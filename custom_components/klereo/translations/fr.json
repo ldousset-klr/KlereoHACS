@@ -52,6 +52,9 @@
     },
     "out_mode_ambiguous_state": {
       "message": "{name} ne peut pas être mis en mode {mode} depuis Home Assistant : ce mode accepte plusieurs états et aucun ne laisse la sortie en l'état, il n'y a donc pas de choix sûr à faire à ta place."
+    },
+    "out_speed_not_settable": {
+      "message": "{name} ne peut pas être réglée tant que la sortie est en {mode} : seul le mode Manuel accepte une vitesse. Change d'abord le mode."
     }
   }
 }

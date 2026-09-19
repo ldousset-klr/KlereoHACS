@@ -2,8 +2,9 @@
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import (DOMAIN, HEATER_OUT_INDEX, HEATER_VARIANTS,
-                    OUT_MODE_NAME_OVERRIDES, OUT_MODE_STATES, OUT_MODES)
+from .const import (DOMAIN, FILTRATION_OUT_INDEX, HEATER_OUT_INDEX,
+                    HEATER_VARIANTS, MAX_PUMP_SPEED, OUT_MODE_NAME_OVERRIDES,
+                    OUT_MODE_STATES, OUT_MODES, filtration_mode_states)
 
 
 def klereo_device_info(pool_data, poolid) -> DeviceInfo:
@@ -59,20 +60,35 @@ def _heater_variant(pool_data):
     return HEATER_VARIANTS.get(params.get("HeaterMode"))
 
 
+def klereo_pump_max_speed(pool_data):
+    """The pool's own top speed index, clamped to what SetOut accepts.
+
+    0 is a real answer — a pool driving no pump speed — so only an absent or
+    malformed field falls back to the protocol's ceiling.
+    """
+    max_speed = pool_data.get("PumpMaxSpeed")
+    if not isinstance(max_speed, int):
+        return MAX_PUMP_SPEED
+    return min(max_speed, MAX_PUMP_SPEED)
+
+
 def klereo_out_mode_states(pool_data, index):
-    """{mode: permitted newState values} for this out, or None if it is read-only.
+    """{mode: ModeRule} for this out, or None if it is read-only.
 
     This is the single answer to both "may Home Assistant write this out" and
     "which modes may it offer": an out is writable exactly when its permitted
     states are known, and the keys are the modes, in the firmware's own order.
 
-    Most outs answer from their index alone. The heating output answers from
-    the payload, a heat pump taking four modes where a dry-contact heater
-    takes two.
+    Most outs answer from their index alone. Two answer from the payload: the
+    heating, a heat pump taking four modes where a dry-contact heater takes
+    two, and the filtration, whose Manuel takes a speed index running up to
+    the pool's own PumpMaxSpeed.
     """
     if index == HEATER_OUT_INDEX:
         variant = _heater_variant(pool_data)
         return variant[0] if variant else None
+    if index == FILTRATION_OUT_INDEX:
+        return filtration_mode_states(klereo_pump_max_speed(pool_data))
     return OUT_MODE_STATES.get(index)
 
 

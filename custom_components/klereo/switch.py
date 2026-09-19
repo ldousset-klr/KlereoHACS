@@ -132,7 +132,8 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
             )
         out = self._out()
         mode = out['mode'] if out else None
-        if state not in states.get(mode, ()):
+        rule = states.get(mode)
+        if rule is None or state not in rule.states:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="out_mode_no_switching",

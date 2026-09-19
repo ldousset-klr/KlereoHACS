@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 DOMAIN = "klereo"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
@@ -184,16 +186,28 @@ OUT_MODE_NAME_OVERRIDES = {
 # from the codeowner, one output family at a time, and each family has its own:
 # the same mode number does not take the same states everywhere.
 #
-# Where OUT_STATE_KEEP appears, a mode change can leave the output's state
-# alone, and that is what select.py sends. Where it does not, the mode change
-# necessarily commands the output too — see _MODE_STATES_PH below.
+# A rule says three things about one mode on one output, and the last two
+# cannot be inferred from the first. On the filtration, newState 2 is the
+# *keep* sentinel in Plages horaires and Régulé, **speed 2** in Manuel, and not
+# permitted at all in Maintenance — one number, three meanings, and only the
+# mode tells them apart. So each rule spells out what its states mean:
+#
+#   states  the newState values the firmware accepts in this mode
+#   keep    the one that applies the mode and leaves the output alone, or None
+#   speed   True where the states are pump speed indexes rather than on/off
+ModeRule = namedtuple("ModeRule", ("states", "keep", "speed"))
+
+
+def _rule(states, keep=None, speed=False):
+    return ModeRule(tuple(states), keep, speed)
+_SWITCHED_BOTH = (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP)
 _MODE_STATES_SWITCHED = {  # lighting (0) and the auxiliaries (5-7, 9-14)
-    0: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Manuel
-    1: (OUT_STATE_KEEP,),                                # Plages horaires
-    2: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Minuterie
-    4: (OUT_STATE_KEEP,),                                # Synchronisé
-    6: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Maintenance
-    8: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Impulsion
+    0: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Manuel
+    1: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Plages horaires
+    2: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Minuterie
+    4: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Synchronisé
+    6: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Maintenance
+    8: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Impulsion
 }
 
 # The pH corrector (2). Note Manuel here takes **only** OUT_STATUS_OFF: a dosing
@@ -202,9 +216,9 @@ _MODE_STATES_SWITCHED = {  # lighting (0) and the auxiliaries (5-7, 9-14)
 # dosing — the one place where changing a mode also changes what the output is
 # doing, and deliberately so.
 _MODE_STATES_PH = {
-    0: (OUT_STATUS_OFF,),                                # Manuel
-    2: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Volume fixe
-    3: (OUT_STATE_KEEP,),                                # Régulé
+    0: _rule((OUT_STATUS_OFF,)),                    # Manuel — no keep
+    2: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Volume fixe
+    3: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Régulé
 }
 
 # The flocculant (8), the same dosing pump without the regulation: Manuel and
@@ -212,8 +226,8 @@ _MODE_STATES_PH = {
 # been given before its real rules arrived — that list was wrong in both
 # directions, missing mode 2 and inventing mode 3.
 _MODE_STATES_FLOC = {
-    0: (OUT_STATUS_OFF,),                                # Manuel
-    2: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Volume fixe
+    0: _rule((OUT_STATUS_OFF,)),                    # Manuel — no keep
+    2: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Volume fixe
 }
 
 # The heating output (4) is the one whose rules come from the payload rather
@@ -230,14 +244,14 @@ HEATER_NOTARGET = 3
 HEATER_PAC_MODBUS = 4    # Klereo heat pump driven over ModBus
 
 _MODE_STATES_HEATER_CONTACT = {   # HEATER_NORMAL, HEATER_NOTARGET
-    0: (OUT_STATUS_OFF,),   # Manuel — stop only, as on the pH corrector
-    3: (OUT_STATE_KEEP,),   # Régulé
+    0: _rule((OUT_STATUS_OFF,)),                    # Manuel — stop only
+    3: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Régulé
 }
 _MODE_STATES_HEATER_PAC = {       # HEATER_PAC_KLINK, HEATER_PAC_MODBUS
-    0: (OUT_STATUS_OFF,),   # Manuel — stop only
-    1: (OUT_STATE_KEEP,),   # Auto
-    2: (OUT_STATE_KEEP,),   # Refroidit
-    3: (OUT_STATE_KEEP,),   # Réchauffe
+    0: _rule((OUT_STATUS_OFF,)),                    # Manuel — stop only
+    1: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Auto
+    2: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Refroidit
+    3: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Réchauffe
 }
 # A heat pump renames three modes, mode 3 included: the same number reads
 # "Régulé" on a dry-contact heater and "Réchauffe" here.
@@ -263,6 +277,25 @@ HEATER_VARIANTS = {
 # firmware's own order. Anything outside them is reserved: where an out already
 # carries such a value, leave it untouched rather than writing one of these over
 # it.
+# The filtration (1), the second output whose rules come from the payload: its
+# Manuel takes a *speed index*, 0 (stopped) to the pool's own PumpMaxSpeed, so
+# the permitted list is as long as the pump has speeds.
+#
+# This is where the keep sentinel has to be stated rather than inferred. In
+# Plages horaires and Régulé, newState 2 means "leave it as it is"; in Manuel
+# the very same 2 means **speed 2**, and in Maintenance it is not permitted at
+# all. Preferring 2 blindly, as every other output allows, would start the pump
+# on a mode change.
+def filtration_mode_states(max_speed):
+    """The filtration's rules on a pool whose pump has `max_speed` speeds."""
+    return {
+        0: _rule(range(0, max_speed + 1), speed=True),  # Manuel — a speed
+        1: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Plages horaires
+        3: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Régulé
+        6: _rule((OUT_STATUS_OFF, OUT_STATUS_ON)),      # Maintenance — on/off
+    }
+
+
 OUT_MODE_STATES = {
     0: _MODE_STATES_SWITCHED,
     2: _MODE_STATES_PH,
@@ -283,9 +316,8 @@ OUT_MODE_STATES = {
 # tables existed, by a list that also covered the pH corrector and the
 # flocculant — and both turned out to differ from it, taking (0, 2, 3) and
 # (0, 2). So this is not merely unconfirmed, it has been wrong twice, in both
-# directions. Filtration (1) and hybrid chlorine (15) never had a list at all:
-# 0/1/3 and 2/3 have merely been *observed* on them, which is not the same as
-# being permitted.
+# directions. Hybrid chlorine (15) never had a list at all: 2/3 has merely been
+# *observed* on it, which is not the same as being permitted.
 OUT_MODES_UNCONFIRMED = {
     3: (0, 3),   # disinfectant
 }
