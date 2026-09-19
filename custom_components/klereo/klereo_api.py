@@ -169,19 +169,23 @@ class KlereoAPI:
             raise KlereoError(f"GetPoolDetails.php knows no pool #{self.poolid}")
         return pools[0]
 
-    def set_out(self, outIdx, state):
-        LOGGER.info(f"SetOut #{self.poolid} out{outIdx} state={state}")
+    def set_out(self, outIdx, state, mode):
+        """Write an out's state. `mode` is newMode and has no default on
+        purpose: it used to be hardcoded to 2 (Minuterie), which silently
+        retimed every output it touched, so the caller must say what it wants.
+        """
+        LOGGER.info(f"SetOut #{self.poolid} out{outIdx} state={state} mode={mode}")
         rep = self._post("SetOut.php", {
             'poolID': self.poolid,
             'outIdx': outIdx,
-            'newMode': 2,
+            'newMode': mode,
             'newState': state
         })
         LOGGER.info(f"rep={rep}")
         return rep
 
-    def turn_on_device(self, outIdx):
-        return self.set_out(outIdx, 1)
+    def turn_on_device(self, outIdx, mode):
+        return self.set_out(outIdx, 1, mode)
 
-    def turn_off_device(self, outIdx):
-        return self.set_out(outIdx, 0)
+    def turn_off_device(self, outIdx, mode):
+        return self.set_out(outIdx, 0, mode)

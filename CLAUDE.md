@@ -167,21 +167,33 @@ The rest of the code depends on these keys:
   confirmed it is *not* the firmware's `e_OutTypes` and has yet to establish what it does
   encode, so don't map it against that enum; like `mode`, it stays an attribute only.
 
-Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode: 2` (manual) and
-`newState`, which takes the same encoding as `status` above — so turning the filtration on
+Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode` and `newState`.
+`newState` takes the same encoding as `status` above — so turning the filtration on
 sends speed 1, and speeds 2-7 are reachable but not exposed by a plain switch. Because a write is not reflected in coordinator data until the next poll,
 `KlereoOut` keeps an optimistic `self._optimistic_state` (True/False/None) that `is_on`
 prefers over `out['status']`. It is cleared in `_handle_coordinator_update()`, so fresh
 server data always wins; a write also fires `coordinator.async_request_refresh()` so that
 handover happens in seconds rather than at the next 300 s poll.
 
+`newMode` is an out's drive mode, named in `OUT_MODES` (0 Manuel, 1 Plages horaires,
+2 Minuterie, 3 Régulé, 4 Synchronisé, 6 Maintenance, 8 Impulsion). **It used to be
+hardcoded to 2**, so every write silently put its output into timer mode, including
+outputs for which 2 is not even permitted. `set_out()` now takes it explicitly and has no
+default; the switch and the speed entity pass the out's *current* mode through, so a write
+changes the state and nothing else.
+
+`OUT_MODE_CHOICES` lists, per out index, the modes the firmware permits: lighting and
+auxiliaries take 0/1/2/4/6/8, and the regulated outputs (pH, disinfectant, flocculant,
+heating) take 0/3 only. Values outside those lists are reserved and must be left alone
+where an out already carries one. Filtration (index 1) and hybrid chlorine (15) have no
+entry: their permitted lists were never supplied, and 0/1/3 and 2/3 have only been
+*observed*, which is not the same thing.
+
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- An out's `mode` is read-only: it is exposed as an attribute but nothing can change it.
-  The stubs that pretended to (`KlereoOut.async_set_mode`, `KlereoAPI.set_device_mode`)
-  only logged and were unreachable, so they were removed. Implementing it needs the
-  meaning of the `mode` values — 0, 1, 2, 3, 4 and 8 have been seen — and a service
-  registered on the switch platform.
+- An out's `mode` is readable (`Mode` and `ModeName` attributes) but nothing can change it
+  yet: there is no mode selector entity. `OUT_MODES` and `OUT_MODE_CHOICES` are the tables
+  such an entity would need.
 
 ### Shape of the `GetIndex.php` payload
 

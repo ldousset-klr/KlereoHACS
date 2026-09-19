@@ -6,6 +6,7 @@ from .const import (
     DOMAIN,
     FILTRATION_OUT_INDEX,
     OUT_LABELS,
+    OUT_MODES,
     OUT_STATUS_OFF,
     OUT_STATUS_ON,
     OUT_STATUS_UNKNOWN,
@@ -54,6 +55,14 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         self._optimistic_state = None
 
     @callback
+    def _out(self):
+        """Return this out in the freshest payload, or None if it vanished."""
+        for out in self.coordinator.data['outs']:
+            if out['index'] == self._index:
+                return out
+        return None
+
+    @callback
     def _handle_coordinator_update(self) -> None:
         # Fresh data won: drop the optimistic value so external changes
         # (schedule, mobile app, manual override) are reflected again.
@@ -95,18 +104,30 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
                     'Time': out['updateTime'],
                     'Type': out['type'],
                     'Mode': out['mode'],
+                    # Reserved values have no name; the raw number stays above.
+                    'ModeName': OUT_MODES.get(out['mode']),
                     'RealStatus': out['realStatus'],
                 }
         return None
 
     async def async_turn_on(self, **kwargs):
-        await self.hass.async_add_executor_job(self._api.turn_on_device, self._index)
+        # Carry the out's current mode through: writing a mode of our own would
+        # take a regulated or scheduled output out of the way it is driven.
+        out = self._out()
+        mode = out['mode'] if out else None
+        await self.hass.async_add_executor_job(
+            self._api.turn_on_device, self._index, mode
+        )
         self._optimistic_state = True
         self.async_write_ha_state()
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs):
-        await self.hass.async_add_executor_job(self._api.turn_off_device, self._index)
+        out = self._out()
+        mode = out['mode'] if out else None
+        await self.hass.async_add_executor_job(
+            self._api.turn_off_device, self._index, mode
+        )
         self._optimistic_state = False
         self.async_write_ha_state()
         await self.coordinator.async_request_refresh()

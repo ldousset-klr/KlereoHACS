@@ -149,3 +149,41 @@ OUT_LABELS = {
     14: "Auxiliaire 9",
     15: "Chlore hybride",
 }
+
+# outs[].mode, and the newMode SetOut takes.
+OUT_MODES = {
+    0: "Manuel",
+    1: "Plages horaires",
+    2: "Minuterie",
+    3: "Régulé",
+    4: "Synchronisé",
+    6: "Maintenance",
+    8: "Impulsion",
+}
+
+# Which modes may be offered for an out, by index — roles being fixed by index.
+# Anything outside these lists is reserved: if an out already carries such a
+# value, leave it untouched rather than writing one of these over it.
+#
+# Filtration (1) and hybrid chlorine (15) are deliberately absent: the firmware's
+# allowed list for them has not been supplied. Modes 0/1/3 and 2/3 have merely
+# been *observed* on them, which is not the same as being permitted, so nothing
+# offers a mode change on those two.
+_MODES_SWITCHED = (0, 1, 2, 4, 6, 8)  # lighting and auxiliaries
+_MODES_REGULATED = (0, 3)             # pH, disinfectant, flocculant, heating
+OUT_MODE_CHOICES = {
+    0: _MODES_SWITCHED,
+    2: _MODES_REGULATED,
+    3: _MODES_REGULATED,
+    4: _MODES_REGULATED,
+    5: _MODES_SWITCHED,
+    6: _MODES_SWITCHED,
+    7: _MODES_SWITCHED,
+    8: _MODES_REGULATED,
+    9: _MODES_SWITCHED,
+    10: _MODES_SWITCHED,
+    11: _MODES_SWITCHED,
+    12: _MODES_SWITCHED,
+    13: _MODES_SWITCHED,
+    14: _MODES_SWITCHED,
+}

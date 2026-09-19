@@ -89,8 +89,13 @@ class KlereoFiltrationSpeed(CoordinatorEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         speed = int(value)
         LOGGER.debug(f"Setting filtration speed of #{self._poolid} to {speed}")
+        mode = None
+        for out in self.coordinator.data['outs']:
+            if out['index'] == FILTRATION_OUT_INDEX:
+                mode = out['mode']
+                break
         await self.hass.async_add_executor_job(
-            self._api.set_out, FILTRATION_OUT_INDEX, speed
+            self._api.set_out, FILTRATION_OUT_INDEX, speed, mode
         )
         self._optimistic_speed = speed
         self.async_write_ha_state()
