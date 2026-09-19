@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A Home Assistant custom integration (distributed via HACS) for Klereo swimming pool
 controllers. The component lives in `custom_components/klereo/` and is copied as-is to
 the same path under the Home Assistant host's `config/`. The root holds `README.md`,
-`hacs.json` (HACS reads it there, never inside the component), `LICENSE`, `icon.png` and
+`hacs.json` (HACS reads it there, never inside the component), `LICENSE` and
 `.github/workflows/`. There is no
 build system, no test suite, and no lint/CI configuration.
 
@@ -27,7 +27,8 @@ to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys m
 define a `CONFIG_SCHEMA` — this one has neither, being config-entry only, and declares
 `cv.config_entry_only_config_schema(DOMAIN)`. The HACS action additionally requires the
 repository itself to carry a description, topics and a license, none of which live in the
-tree. Its `brands` check is ignored until the logo is submitted.
+tree. Its `brands` check is ignored permanently: that repository no longer accepts custom
+integrations.
 
 Bump `version` in `manifest.json` when publishing a release that HACS should pick up.
 `hacs.json` declares the minimum Home Assistant version (2024.11.0, set by the
@@ -240,12 +241,14 @@ message, rather than vanishing with no explanation.
 
 ## README TODOs worth knowing
 
-The integration's **logo** is not in this repository: Home Assistant fetches it from
-`brands.home-assistant.io`, fed by the `home-assistant/brands` repo, under
-`custom_integrations/klereo/` — `icon.png` at 256x256 and `icon@2x.png` at 512x512, PNG,
-square, trimmed, transparency preferred. The root `icon.png` here is 256x256 RGBA and
-already fits the first of the two; nothing in the component reads it. Entity icons are a
-separate mechanism entirely, see `PROBE_ICONS`/`OUT_ICONS`.
+The integration's **logo** lives in `custom_components/klereo/brand/`. Since Home
+Assistant 2026.3 a custom integration ships its own brand images there and they take
+priority over the CDN; `home-assistant/brands` no longer accepts custom integrations, so
+`ignore: brands` in the workflow is permanent rather than pending a submission. Supported
+names are `icon.png`, `logo.png`, their `@2x` variants and a `dark_` prefix for each; only
+`icon.png` (256x256 RGBA) is present. Releases before 2026.3 ignore the directory and show
+a placeholder. Entity icons are a separate mechanism entirely, see
+`PROBE_ICONS`/`OUT_ICONS`.
 
 The README carries a disclaimer that the integration is
 community-driven and **not officially endorsed or supported by Klereo** — keep that framing
