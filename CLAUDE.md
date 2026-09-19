@@ -130,7 +130,15 @@ credential disclosure, not just a connection failure.
   `_key` (`klereo<poolid>probe<index>`) separate from `_name`: **`unique_id` is built from
   `_key` and must never follow the name**, or renaming a probe in Klereo would orphan the
   entity and lose its history. `_name` is the `IORename` label when there is one, else
-  `_key`. A sensor falls back once more before the key: `PROBE_LABELS` in `const.py`
+  `_key`. `KlereoOut` is also a `RestoreEntity`, for the filtration alone: turning that
+  out on has to name a speed, and **a stopped pump reports `status: 0`**, so the speed it
+  was last running at is nowhere in the payload. `_learn_speed()` takes it from every poll
+  that shows the pump running, `_on_state()` sends it back instead of `OUT_STATUS_ON`
+  where the mode's rule says its states are speeds, and it is published as the `LastSpeed`
+  attribute — which is also how `async_added_to_hass()` recovers it after a restart that
+  happened while the pump was stopped. A speed that no longer fits the pool's
+  `PumpMaxSpeed` is not in the rule's states and is ignored, falling back to speed 1.
+  A sensor falls back once more before the key: `PROBE_LABELS` in `const.py`
   gives the controller's own name for each probe **index** (0-31). That table is keyed on
   the index, not the type, and the two disagree on a few installs — a type 10 generic at
   index 20 whose label reads "Température air 3" — so it is only ever a fallback, never
@@ -305,9 +313,9 @@ list are reserved and must be left alone where an out already carries one.
 - Nothing exposes an out's mode on the read-only outputs: the disinfectant and hybrid
   chlorine get no `select` and no write, their permitted states never having been supplied.
   The mode is still visible as the switch's `Mode`/`ModeName` attributes.
-- Speeds 2 and above are reachable only through the speed entity, and only in Manuel. The
-  switch still sends speed 1 for "on", which is the documented behaviour but means turning
-  the filtration on from a dashboard drops it to its lowest speed.
+- A filtration never seen running since Home Assistant started, and with no restored
+  state, still turns on at speed 1. There is nowhere else to learn a speed from: a stopped
+  pump reports `status: 0` and the payload keeps no history.
 
 ### Shape of the `GetIndex.php` payload
 

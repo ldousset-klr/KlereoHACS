@@ -65,8 +65,10 @@ whatever address it holds**.
   refuse to be written, until the rules for them are settled. The heating joins them when
   the controller does not say what it drives — a pool with no heating, or one whose
   `HeaterMode` the integration does not recognise.
-- **Turning the filtration on from the switch runs it at speed 1.** Use the speed control
-  for anything faster; the switch has no way to express a speed.
+- **Turning the filtration on from the switch resumes its last known speed** — the one it
+  was last seen running at, visible as the switch's `LastSpeed` attribute and remembered
+  across restarts. It falls back to speed 1 if the pump has not been seen running since
+  the integration was set up, a stopped pump reporting no speed at all.
 - **The mode selector only covers the outputs you can switch.** On the others the mode is
   still visible as an entity attribute (*Manuel*, *Plages horaires*, *Régulé*…) but
   nothing can change it.
