@@ -1,7 +1,8 @@
 # Klereo for Home Assistant
 
 Unofficial Home Assistant integration for Klereo swimming pool controllers. It polls the
-Klereo Connect cloud and exposes a pool's probes, outputs and filtration speed as entities.
+Klereo Connect cloud and exposes a pool's probes, outputs, filtration speed and output
+modes as entities.
 
 Requires **Home Assistant 2024.11 or later**.
 
@@ -15,6 +16,9 @@ One device per pool, named after its Klereo nickname, carrying:
 - **A switch per output** — lighting, filtration, pH corrector, disinfectant, heating and
   the auxiliaries.
 - **The filtration speed**, on pools whose pump has more than one.
+- **A mode selector** on each output you can drive — *Manuel*, *Plages horaires*,
+  *Minuterie*, *Synchronisé*, *Maintenance*, *Impulsion*. Changing the mode leaves the
+  output doing whatever it was doing.
 - **Diagnostic sensors** for the registration PIN and the device slot on the pod.
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
@@ -52,8 +56,12 @@ whatever address it holds**.
   disinfectant, heating, flocculant and hybrid chlorine report their state but refuse to
   be driven, until the write semantics for them are settled. That also makes the
   filtration speed read-only for now.
-- **An output's mode is read-only.** It is visible as an entity attribute (*Manuel*,
-  *Plages horaires*, *Régulé*…) but nothing can change it.
+- **The mode selector only covers the outputs you can switch.** On the others the mode is
+  still visible as an entity attribute (*Manuel*, *Plages horaires*, *Régulé*…) but
+  nothing can change it.
+- **In *Plages horaires* and *Synchronisé*, switching an output on or off does nothing and
+  reports an error.** The schedule owns the output in those two modes and the controller
+  defines no on/off there — change the mode first, with the mode selector.
 - **Water readings freeze while the filtration is off.** The controller does this on
   purpose — a measurement without circulation means nothing — so a sensor can sit hours
   behind. Compare the `Time` and `DirectTime` attributes to tell a settled reading from a
@@ -167,13 +175,30 @@ encoding as `mode`. **`newMode` is not optional**: whatever you send becomes the
 mode, so send the output's current mode unless you actually intend to change how it is
 driven.
 
+The two are not independent — each mode accepts only certain states, on lighting and the
+auxiliaries:
+
+| `newMode` | accepted `newState` |
+| --- | --- |
+| 0 Manuel | 0 off, 1 on, 2 keep |
+| 1 Plages horaires | 2 keep |
+| 2 Minuterie | 0 off, 1 on, 2 keep |
+| 4 Synchronisé | 2 keep |
+| 6 Maintenance | 0 off, 1 on, 2 keep |
+| 8 Impulsion | 0 off, 1 on, 2 keep |
+
+`newState: 2` is the one every mode takes. Written rather than read it does not mean
+*unknown* but **"apply the mode and leave the output's state as it is"**, which is how a
+mode is changed without also commanding the output. On the filtration output it is not a
+sentinel at all — there 2 is speed 2.
+
 A write is not reflected in `GetPoolDetails.php` until the controller has polled, so expect
 a lag of seconds before a read confirms it.
 
 ## Todo
 
 - Expose more pool information
-- A mode selector for the outputs that allow one
+- Writing the outputs that are still read-only, and a mode selector on them
 
 ## Disclaimer
 

@@ -62,6 +62,13 @@ OUT_STATUS_OFF = 0
 OUT_STATUS_ON = 1
 OUT_STATUS_UNKNOWN = 2
 
+# The same 2, written rather than read, means "apply the mode and leave the
+# output's state as the controller has it". It is the only way to change an
+# out's mode without also commanding it on or off, which is why a mode change
+# always sends this. On the filtration out it is not a sentinel at all but
+# speed 2, so it must never be written there.
+OUT_STATE_KEEP = 2
+
 # Which out carries the filtration, and so which one reads as a speed index.
 #
 # Confirmed by the firmware: output roles are fixed by index, and index 1 is the
@@ -188,6 +195,23 @@ OUT_MODE_CHOICES = {
     14: _MODES_SWITCHED,
 }
 
+# What newState may carry, per mode, on the switched outs. Supplied by the
+# codeowner for lighting and the auxiliaries; the regulated outs' mode 3 is
+# absent because nothing writes them yet.
+#
+# OUT_STATE_KEEP is accepted by every mode and is what a mode change sends.
+# Plages horaires and Synchronisé accept *nothing else*: in those two the
+# schedule owns the output, so a plain on/off has no meaning and the switch
+# refuses rather than sending a combination the firmware does not define.
+OUT_MODE_STATES = {
+    0: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Manuel
+    1: (OUT_STATE_KEEP,),                                # Plages horaires
+    2: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Minuterie
+    4: (OUT_STATE_KEEP,),                                # Synchronisé
+    6: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Maintenance
+    8: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Impulsion
+}
+
 # Outs Home Assistant may write to, for now: lighting and the auxiliaries —
 # exactly the group that takes the _MODES_SWITCHED list above. Everything else
 # (filtration, pH, disinfectant, heating, flocculant, hybrid chlorine) is
@@ -233,4 +257,5 @@ OUT_ICONS = {
 }
 
 ICON_FILTRATION_SPEED = "mdi:speedometer"
+ICON_OUT_MODE = "mdi:tune"
 ICON_INFO = "mdi:identifier"

@@ -46,6 +46,9 @@
   "exceptions": {
     "out_read_only": {
       "message": "{name} is read-only for now: only lighting and auxiliary outputs can be driven from Home Assistant."
+    },
+    "out_mode_no_switching": {
+      "message": "{name} is in {mode} mode, which only accepts the state the controller already has: switching it on or off there is not defined. Change the mode first."
     }
   }
 }

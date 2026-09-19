@@ -69,7 +69,7 @@ credential disclosure, not just a connection failure.
   blocking `requests` calls), and drives a `DataUpdateCoordinator` polling every
   `UPDATE_INTERVAL` (300 s). Coordinator + api are stashed in
   `hass.data[DOMAIN][entry.entry_id]` for the platforms.
-  `PLATFORMS = ["sensor", "switch", "number"]`.
+  `PLATFORMS = ["sensor", "switch", "number", "select"]`.
   The update callback maps `KlereoAuthError` to `ConfigEntryAuthFailed` (triggering the
   reauth flow) and `KlereoError`/`RequestException` to `UpdateFailed`.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
@@ -113,6 +113,14 @@ credential disclosure, not just a connection failure.
   and 3 have been seen and **0 is a real answer, not a missing one** — only an absent or
   non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
+- `select.py` — one entity per writable out, its drive mode. Offered only where both
+  facts are known: that Home Assistant may write the out at all (`WRITABLE_OUT_INDEXES`)
+  and which modes the firmware permits on it (`OUT_MODE_CHOICES`) — so lighting and the
+  auxiliaries have one, and the filtration, the regulated outs and hybrid chlorine do not.
+  The write sends `OUT_STATE_KEEP` as `newState`, so **changing the mode never changes what
+  the output is doing**. `current_option` returns `None` rather than a name when the out
+  carries a mode outside its permitted list: a reserved value must be left alone, and Home
+  Assistant rejects a state that is not among the options anyway.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
   re-scan `coordinator.data` on every property read rather than caching. Each entity keeps
@@ -200,7 +208,18 @@ handover happens in seconds rather than at the next 300 s poll.
 hardcoded to 2**, so every write silently put its output into timer mode, including
 outputs for which 2 is not even permitted. `set_out()` now takes it explicitly and has no
 default; the switch and the speed entity pass the out's *current* mode through, so a write
-changes the state and nothing else. **That is the codeowner's decision, not a fallback**:
+changes the state and nothing else.
+
+**The two fields are not independent**: `OUT_MODE_STATES` lists what `newState` may carry
+in each mode, as supplied by the codeowner for lighting and the auxiliaries. `2` —
+`OUT_STATE_KEEP`, the same number that reads back as *unknown* — means "apply the mode and
+leave the output's state alone", and **every mode accepts it**; that is what makes a mode
+change possible without also commanding the output. Manuel, Minuterie, Maintenance and
+Impulsion additionally take `0` and `1`. **Plages horaires and Synchronisé take nothing
+else**, the schedule owning the output there, so `KlereoOut._writable_mode()` refuses a
+turn_on/turn_off in those two with the `out_mode_no_switching` key rather than sending a
+combination the firmware does not define. The filtration is the exception to all of it:
+there `2` is speed 2, not a sentinel, so `OUT_STATE_KEEP` must never be written to out 1. **That is the codeowner's decision, not a fallback**:
 forcing `0` (Manuel) would make a switch behave the way people expect, but it would also
 pull the pH corrector, the disinfectant or the heater out of regulation and disturb the
 water treatment. The accepted cost is that toggling a regulated output may appear to do
@@ -226,9 +245,10 @@ entry: their permitted lists were never supplied, and 0/1/3 and 2/3 have only be
 
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- An out's `mode` is readable (`Mode` and `ModeName` attributes) but nothing can change it
-  yet: there is no mode selector entity. `OUT_MODES` and `OUT_MODE_CHOICES` are the tables
-  such an entity would need.
+- Nothing exposes an out's mode on the read-only outputs: the regulated ones (pH,
+  disinfectant, flocculant, heating) carry `OUT_MODE_CHOICES` entries of `(0, 3)` but get
+  no `select`, since `WRITABLE_OUT_INDEXES` still refuses every write on them. The mode is
+  visible as the switch's `Mode`/`ModeName` attributes only.
 
 ### Shape of the `GetIndex.php` payload
 

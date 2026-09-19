@@ -8,6 +8,7 @@ from .const import (
     FILTRATION_OUT_INDEX,
     OUT_ICONS,
     OUT_LABELS,
+    OUT_MODE_STATES,
     OUT_MODES,
     WRITABLE_OUT_INDEXES,
     OUT_STATUS_OFF,
@@ -114,8 +115,15 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
                 }
         return None
 
-    def _writable_mode(self):
-        """The mode to write back, or raise if this out is not writable."""
+    def _writable_mode(self, state):
+        """The mode to write back, or raise if this write is not allowed.
+
+        Two separate refusals. The out may be read-only altogether; or it may
+        sit in a mode that does not take the state being written — Plages
+        horaires and Synchronisé accept nothing but "leave the state alone",
+        the schedule owning the output — and sending 0/1 there would be a
+        combination the firmware does not define.
+        """
         if self._index not in WRITABLE_OUT_INDEXES:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -123,14 +131,25 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
                 translation_placeholders={"name": self._name},
             )
         out = self._out()
-        return out['mode'] if out else None
+        mode = out['mode'] if out else None
+        if state not in OUT_MODE_STATES.get(mode, ()):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="out_mode_no_switching",
+                translation_placeholders={
+                    "name": self._name,
+                    # Reserved modes have no name; show the raw number then.
+                    "mode": OUT_MODES.get(mode, str(mode)),
+                },
+            )
+        return mode
 
     async def async_turn_on(self, **kwargs):
         # Carry the out's current mode through, by the codeowner's decision:
         # writing 0 (Manuel) would pull a regulated output out of regulation.
         # The cost is that toggling such an output may look inert, the
-        # regulator still owning its state.
-        mode = self._writable_mode()
+        # regulator still owning its state. The mode select changes the mode.
+        mode = self._writable_mode(OUT_STATUS_ON)
         await self.hass.async_add_executor_job(
             self._api.turn_on_device, self._index, mode
         )
@@ -139,7 +158,7 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs):
-        mode = self._writable_mode()
+        mode = self._writable_mode(OUT_STATUS_OFF)
         await self.hass.async_add_executor_job(
             self._api.turn_off_device, self._index, mode
         )
