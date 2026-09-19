@@ -113,10 +113,12 @@ credential disclosure, not just a connection failure.
   and 3 have been seen and **0 is a real answer, not a missing one** — only an absent or
   non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
-- `select.py` — one entity per writable out, its drive mode. Offered exactly where the
-  out's permitted states are known (`OUT_MODE_STATES`, which `WRITABLE_OUT_INDEXES` is
-  derived from) — so lighting, the auxiliaries and the pH corrector have one, and the
-  filtration, the other regulated outs and hybrid chlorine do not. The write sends
+- `select.py` — one entity per writable out, its drive mode. Offered exactly where
+  `klereo_out_mode_states()` answers — so lighting, the auxiliaries, the pH corrector and
+  a heating output whose kind is known have one, and the filtration, the disinfectant, the
+  flocculant and hybrid chlorine do not. The options are resolved **once, in `__init__`**:
+  `HeaterMode` describes what the output is wired to, which is a reinstallation rather than
+  something that changes under a poll. The write sends
   `OUT_STATE_KEEP` as `newState` **wherever the target mode accepts it**, so changing the
   mode normally leaves the output doing what it was doing; the pH corrector's Manuel is the
   exception, taking only "off", so selecting it stops the dosing. `current_option` returns `None` rather than a name when the out
@@ -171,7 +173,8 @@ The rest of the code depends on these keys:
   `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax` mirror the
   matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`, `AirMin/Max`,
   `PressureMin/Max`) — **usually**: one pool's pressure probe bounds 200..2400 against a
-  `PressureMax` of 1100, so this is a hint, not an invariant. It is how `PROBE_TYPES` was
+  `PressureMax` of 1100, so this is a hint, not an invariant. `params.HeaterMode` is read
+  too, and decides what the heating out may be set to — see the writes section below. It is how `PROBE_TYPES` was
   first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
   its pressure probe correctly — so trust `probes[].type`, not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
@@ -222,6 +225,23 @@ auxiliaries) every mode accepts it; Manuel, Minuterie, Maintenance and Impulsion
 and `1` as well, while **Plages horaires and Synchronisé take nothing else**, the schedule
 owning the output there.
 
+The **heating output** (index 4) goes further: its rules come from the **payload**, not
+from its index. `params.HeaterMode` says what the output drives — 1 a dry-contact heater,
+2 and 4 a Klereo heat pump (K-LINK and ModBus), 3 HEAT_NOTARGET, 0 no heating. A heater
+takes Manuel and Régulé; a heat pump takes Manuel, Auto, Refroidit and Réchauffe. Manuel
+is stop-only on both, and every other mode takes `OUT_STATE_KEEP` alone. **Mode 3 is
+"Régulé" on the heater and "Réchauffe" on the pump** — the same number on the same output,
+named differently by what it is wired to. `HEATER_NONE`, a value outside the enum, and a
+missing `HeaterMode` all read alike: the kind is not established, so the output stays
+read-only and its modes go unnamed rather than being guessed from the wrong table.
+
+That is why **nothing reads the mode tables directly**. `entity.klereo_out_mode_states()`
+is the single answer to both "may this be written" and "which modes may it offer" — it
+returns `None` for a read-only out and, otherwise, `{mode: permitted states}` whose keys
+are the modes in the firmware's order. `entity.klereo_out_mode_name()` is the matching
+answer for wording. Both take `pool_data`, and there is no `WRITABLE_OUT_INDEXES`
+constant any more: writability is a property of a pool *and* an out, not of an out alone.
+
 The **pH corrector** (index 2) breaks the pattern twice. Its Manuel accepts **only `0`**:
 a dosing pump put back under manual control is stopped, it cannot be commanded on and it
 cannot keep its state — so selecting Manuel there does stop the dosing, which is the
@@ -242,35 +262,34 @@ water treatment. The accepted cost is that toggling a regulated output may appea
 nothing, the regulator still owning its state — so don't "fix" an inert switch on such an
 output by writing a mode.
 
-**Only lighting (index 0), the auxiliaries (5-7, 9-14) and the pH corrector (2) may be
-written**: `WRITABLE_OUT_INDEXES` is now *derived* from `OUT_MODE_STATES`, so an output
-becomes writable exactly when its permitted states arrive and the two can never drift
-apart. Filtration, disinfectant, heating, flocculant and hybrid chlorine are read-only
-until the codeowner specifies how `SetOut` should be called on them. Their entities still exist and still report state; a turn_on/turn_off raises
+**Lighting (0), the auxiliaries (5-7, 9-14), the pH corrector (2) and the heating output
+(4, when `params.HeaterMode` names a kind) may be written.** An output becomes writable
+exactly when its permitted states arrive, since the one resolver answers both questions.
+Filtration, disinfectant, flocculant and hybrid chlorine are read-only until the codeowner
+specifies how `SetOut` should be called on them. Their entities still exist and still report state; a turn_on/turn_off raises
 `ServiceValidationError` with the `out_read_only` key, which lives in the `exceptions`
 section of `strings.json` and both translations. **This also makes the filtration speed
 entity read-only**, since it writes out 1 — it reports the speed and refuses to set it,
 which is odd for a `number` but avoids churning the entity's domain twice when the
 restriction lifts.
 
-`OUT_MODE_CHOICES` lists, per out index, the modes the firmware permits: lighting and
-auxiliaries take 0/1/2/4/6/8, the pH corrector takes 0/2/3, and the remaining regulated
-outputs (disinfectant, flocculant, heating) take 0/3 only. Where the states are known it
-is *derived* from `OUT_MODE_STATES`; the rest keep an explicit list, enough to name a mode
-but not to write one. Mode names go through `entity.klereo_out_mode_name()`, never
-`OUT_MODES` directly, since a mode's label can depend on the output. Values outside those lists are reserved and must be left alone
+The modes an out permits are the keys of its `OUT_MODE_STATES` entry (or of its
+`HEATER_VARIANTS` entry, for the heating output), so the two can never disagree: lighting
+and auxiliaries take 0/1/2/4/6/8, the pH corrector 0/2/3, a dry-contact heater 0/3 and a
+heat pump 0/1/2/3. `OUT_MODES_UNCONFIRMED` holds the `(0, 3)` given for the disinfectant
+and the flocculant; **no code reads it**. It came from the same list that covered the pH
+corrector, which turned out to take `(0, 2, 3)`, so treat it as unconfirmed. Filtration (1)
+and hybrid chlorine (15) never had a list at all — 0/1/3 and 2/3 have merely been
+*observed*, which is not the same thing. Values outside those lists are reserved and must be left alone
 where an out already carries one. Filtration (index 1) and hybrid chlorine (15) have no
 entry: their permitted lists were never supplied, and 0/1/3 and 2/3 have only been
 *observed*, which is not the same thing.
 
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- Nothing exposes an out's mode on the read-only outputs: disinfectant, flocculant and
-  heating carry `OUT_MODE_CHOICES` entries of `(0, 3)` but no `OUT_MODE_STATES`, so they
-  get no `select` and no write. The mode is visible as the switch's `Mode`/`ModeName`
-  attributes only. Their `(0, 3)` list was supplied before the per-output state rules
-  existed, and the pH corrector — which that list also covered — turned out to take
-  `(0, 2, 3)`, so treat the remaining three as unconfirmed.
+- Nothing exposes an out's mode on the read-only outputs: the disinfectant and the
+  flocculant get no `select` and no write, their permitted states never having been
+  supplied. The mode is still visible as the switch's `Mode`/`ModeName` attributes.
 
 ### Shape of the `GetIndex.php` payload
 

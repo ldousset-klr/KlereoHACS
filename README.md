@@ -16,11 +16,13 @@ One device per pool, named after its Klereo nickname, carrying:
 - **A switch per output** — lighting, filtration, pH corrector, disinfectant, heating and
   the auxiliaries.
 - **The filtration speed**, on pools whose pump has more than one.
-- **A mode selector** on each output you can drive. Lighting and the auxiliaries offer
-  *Manuel*, *Plages horaires*, *Minuterie*, *Synchronisé*, *Maintenance* and *Impulsion*;
-  the pH corrector offers *Manuel*, *Volume fixe* and *Régulé*. Changing the mode leaves
-  the output doing whatever it was doing — except *Manuel* on the pH corrector, which
-  stops the dosing pump, the controller allowing nothing else there.
+- **A mode selector** on each output you can drive, offering what that particular output
+  accepts: *Manuel*, *Plages horaires*, *Minuterie*, *Synchronisé*, *Maintenance* and
+  *Impulsion* on lighting and the auxiliaries; *Manuel*, *Volume fixe* and *Régulé* on the
+  pH corrector; *Manuel* and *Régulé* on a heater, or *Manuel*, *Auto*, *Refroidit* and
+  *Réchauffe* when the heating output drives a Klereo heat pump. Changing the mode leaves
+  the output doing whatever it was doing — except *Manuel* on the pH corrector and on the
+  heating, which stop them, the controller allowing nothing else there.
 - **Diagnostic sensors** for the registration PIN and the device slot on the pod.
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
@@ -54,18 +56,19 @@ whatever address it holds**.
 
 ## Current limitations
 
-- **Only lighting, the auxiliaries and the pH corrector can be driven.** Filtration,
-  disinfectant, heating, flocculant and hybrid chlorine report their state but refuse to
+- **Only lighting, the auxiliaries, the pH corrector and the heating can be driven.**
+  Filtration, disinfectant, flocculant and hybrid chlorine report their state but refuse to
   be written, until the rules for them are settled. That also makes the filtration speed
-  read-only for now.
+  read-only for now. The heating joins them when the controller does not say what it drives
+  — a pool with no heating, or one whose `HeaterMode` the integration does not recognise.
 - **The mode selector only covers the outputs you can switch.** On the others the mode is
   still visible as an entity attribute (*Manuel*, *Plages horaires*, *Régulé*…) but
   nothing can change it.
 - **Some modes refuse a plain on/off, and say so.** The schedule owns the output in
-  *Plages horaires* and *Synchronisé*, the regulator owns it in *Régulé*, and the pH
-  corrector in *Manuel* can only be stopped — in each case the controller defines no such
-  command and the switch reports an error instead of sending one. Change the mode first,
-  with the mode selector.
+  *Plages horaires* and *Synchronisé*, the regulator owns it in *Régulé*, *Auto*,
+  *Refroidit* and *Réchauffe*, and the pH corrector and the heating in *Manuel* can only be
+  stopped — in each case the controller defines no such command and the switch reports an
+  error instead of sending one. Change the mode first, with the mode selector.
 - **Water readings freeze while the filtration is off.** The controller does this on
   purpose — a measurement without circulation means nothing — so a sensor can sit hours
   behind. Compare the `Time` and `DirectTime` attributes to tell a settled reading from a
@@ -202,15 +205,30 @@ The pH corrector:
 Mode 2 is the same mechanism in both tables; the controller just calls it *Minuterie* on
 one and *Volume fixe* on the other.
 
+The heating output, where `params.HeaterMode` decides which of the two applies:
+
+| `HeaterMode` | what it drives | `newMode` | accepted `newState` |
+| --- | --- | --- | --- |
+| 1, 3 | dry-contact heater | 0 Manuel | 0 off **only** |
+| | | 3 Régulé | 2 keep |
+| 2, 4 | Klereo heat pump (K-LINK, ModBus) | 0 Manuel | 0 off **only** |
+| | | 1 Auto | 2 keep |
+| | | 2 Refroidit | 2 keep |
+| | | 3 Réchauffe | 2 keep |
+
+`HeaterMode: 0` means no heating at all. Note mode 3 is *Régulé* on a heater and
+*Réchauffe* on a heat pump: the same number on the same output, named by what it is wired
+to.
+
 `newState: 2`, written rather than read, does not mean *unknown* but **"apply the mode and
 leave the output's state as it is"** — which is how a mode is changed without also
 commanding the output. Most modes take it; the pH corrector's *Manuel* does not, so
 selecting that mode necessarily stops the pump. On the filtration output it is not a
 sentinel at all — there 2 is speed 2.
 
-The remaining outputs (disinfectant, flocculant, heating) are listed as accepting modes 0
-and 3, but that list predates the per-output tables above and the pH corrector — covered
-by the same list — turned out to accept 0, 2 and 3. Treat it as unconfirmed.
+The remaining outputs (disinfectant, flocculant) are listed as accepting modes 0 and 3,
+but that list predates the per-output tables above and the pH corrector — covered by the
+same list — turned out to accept 0, 2 and 3. Treat it as unconfirmed.
 
 A write is not reflected in `GetPoolDetails.php` until the controller has polled, so expect
 a lag of seconds before a read confirms it.

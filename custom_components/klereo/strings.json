@@ -45,7 +45,7 @@
   },
   "exceptions": {
     "out_read_only": {
-      "message": "{name} is read-only for now: only lighting, the auxiliaries and the pH corrector can be driven from Home Assistant."
+      "message": "{name} cannot be driven from Home Assistant: the controller has not said which states it accepts, or — on the heating — what it drives."
     },
     "out_mode_no_switching": {
       "message": "{name} is in {mode} mode, which only accepts the state the controller already has: switching it on or off there is not defined. Change the mode first."

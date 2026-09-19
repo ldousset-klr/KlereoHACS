@@ -8,14 +8,12 @@ from .const import (
     FILTRATION_OUT_INDEX,
     OUT_ICONS,
     OUT_LABELS,
-    OUT_MODE_STATES,
-    WRITABLE_OUT_INDEXES,
     OUT_STATUS_OFF,
     OUT_STATUS_ON,
     OUT_STATUS_UNKNOWN,
 )
 from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
-                     klereo_out_mode_name)
+                     klereo_out_mode_name, klereo_out_mode_states)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -110,7 +108,8 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
                     'Type': out['type'],
                     'Mode': out['mode'],
                     # Reserved values have no name; the raw number stays above.
-                    'ModeName': klereo_out_mode_name(self._index, out['mode']),
+                    'ModeName': klereo_out_mode_name(self.coordinator.data,
+                                                     self._index, out['mode']),
                     'RealStatus': out['realStatus'],
                 }
         return None
@@ -124,7 +123,8 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
         the schedule owning the output — and sending 0/1 there would be a
         combination the firmware does not define.
         """
-        if self._index not in WRITABLE_OUT_INDEXES:
+        states = klereo_out_mode_states(self.coordinator.data, self._index)
+        if states is None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="out_read_only",
@@ -132,14 +132,15 @@ class KlereoOut(CoordinatorEntity, SwitchEntity):
             )
         out = self._out()
         mode = out['mode'] if out else None
-        if state not in OUT_MODE_STATES.get(self._index, {}).get(mode, ()):
+        if state not in states.get(mode, ()):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="out_mode_no_switching",
                 translation_placeholders={
                     "name": self._name,
                     # Reserved modes have no name; show the raw number then.
-                    "mode": klereo_out_mode_name(self._index, mode) or str(mode),
+                    "mode": klereo_out_mode_name(self.coordinator.data,
+                                                 self._index, mode) or str(mode),
                 },
             )
         return mode

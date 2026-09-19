@@ -3,10 +3,9 @@ from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (DOMAIN, ICON_OUT_MODE, OUT_LABELS, OUT_MODE_CHOICES,
-                    OUT_MODE_STATES, OUT_STATE_KEEP, WRITABLE_OUT_INDEXES)
+from .const import DOMAIN, ICON_OUT_MODE, OUT_LABELS, OUT_STATE_KEEP
 from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
-                     klereo_out_mode_name)
+                     klereo_out_mode_name, klereo_out_mode_states)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -24,9 +23,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     selects = []
     for out in pool_data["outs"]:
         index = out['index']
-        # A mode is offered only where both are known: that Home Assistant may
-        # write this out at all, and which modes the firmware permits on it.
-        if index not in WRITABLE_OUT_INDEXES or index not in OUT_MODE_CHOICES:
+        # A mode is offered exactly where the out's permitted states are known:
+        # that is both what makes it writable and what says which modes to list.
+        if klereo_out_mode_states(pool_data, index) is None:
             continue
         LOGGER.info("Adding mode select for #%s out%s", poolid, index)
         selects.append(KlereoOutMode(api, coordinator, out, poolid,
@@ -59,10 +58,14 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
                 or f"klereo{poolid}out{self._index}")
         self._name = f"{base} mode"
         # Offered in the firmware's own order, under this out's own wording.
+        # Resolved once here: the heating output's list depends on the payload,
+        # and HeaterMode is a rewiring, not something that changes under a poll.
+        pool_data = coordinator.data
+        self._states = klereo_out_mode_states(pool_data, self._index)
         self._modes = {
-            klereo_out_mode_name(self._index, mode): mode
-            for mode in OUT_MODE_CHOICES[self._index]
-            if klereo_out_mode_name(self._index, mode) is not None
+            klereo_out_mode_name(pool_data, self._index, mode): mode
+            for mode in self._states
+            if klereo_out_mode_name(pool_data, self._index, mode) is not None
         }
         self._attr_options = list(self._modes)
         # Optimistic value held between a write and the next successful poll.
@@ -98,13 +101,14 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
         out = self._out()
         if out is None:
             return None
-        option = klereo_out_mode_name(self._index, out['mode'])
+        option = klereo_out_mode_name(self.coordinator.data, self._index,
+                                      out['mode'])
         if option not in self._attr_options:
             # A reserved or unexpected mode: report unknown rather than a value
             # Home Assistant would reject, and leave it alone.
             LOGGER.debug("#%s out%s carries mode %r, outside %s",
                          self._poolid, self._index, out['mode'],
-                         OUT_MODE_CHOICES[self._index])
+                         tuple(self._states))
             return None
         return option
 
@@ -118,7 +122,7 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
         several states but not OUT_STATE_KEEP has never been described; refuse
         rather than pick one on the user's behalf.
         """
-        states = OUT_MODE_STATES[self._index][mode]
+        states = self._states[mode]
         if OUT_STATE_KEEP in states:
             return OUT_STATE_KEEP
         if len(states) == 1:

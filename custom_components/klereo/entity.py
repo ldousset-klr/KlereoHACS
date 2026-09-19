@@ -2,7 +2,8 @@
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import DOMAIN, OUT_MODE_NAME_OVERRIDES, OUT_MODES
+from .const import (DOMAIN, HEATER_OUT_INDEX, HEATER_VARIANTS,
+                    OUT_MODE_NAME_OVERRIDES, OUT_MODE_STATES, OUT_MODES)
 
 
 def klereo_device_info(pool_data, poolid) -> DeviceInfo:
@@ -47,14 +48,56 @@ def klereo_io_names(pool_data, io_type):
     return names
 
 
-def klereo_out_mode_name(index, mode):
+def _heater_variant(pool_data):
+    """The heating output's rules on this pool, or None if it has none.
+
+    params.HeaterMode says what the output actually drives. A value outside
+    the enum, HEATER_NONE, or no params at all all mean the same thing here:
+    the kind is not established, so nothing is written.
+    """
+    params = pool_data.get("params") or {}
+    return HEATER_VARIANTS.get(params.get("HeaterMode"))
+
+
+def klereo_out_mode_states(pool_data, index):
+    """{mode: permitted newState values} for this out, or None if it is read-only.
+
+    This is the single answer to both "may Home Assistant write this out" and
+    "which modes may it offer": an out is writable exactly when its permitted
+    states are known, and the keys are the modes, in the firmware's own order.
+
+    Most outs answer from their index alone. The heating output answers from
+    the payload, a heat pump taking four modes where a dry-contact heater
+    takes two.
+    """
+    if index == HEATER_OUT_INDEX:
+        variant = _heater_variant(pool_data)
+        return variant[0] if variant else None
+    return OUT_MODE_STATES.get(index)
+
+
+def klereo_out_mode_name(pool_data, index, mode):
     """The name an out gives one of its modes, or None if the mode is reserved.
 
-    A mode number does not always carry the same label: mode 2 is "Minuterie"
-    on the switched outs and "Volume fixe" on the pH corrector, the two being
-    functionally identical. Everything user-facing goes through here rather
-    than reading OUT_MODES, so an out never shows another out's wording.
+    A mode number does not always carry the same label. Mode 2 is "Minuterie"
+    on the switched outs and "Volume fixe" on the pH corrector; mode 3 is
+    "Régulé" on a dry-contact heater and "Réchauffe" on a heat pump — so the
+    heating output's wording depends on the payload, not just on its index.
+    Everything user-facing goes through here rather than reading OUT_MODES, so
+    an out never shows another out's wording.
     """
+    if index == HEATER_OUT_INDEX:
+        variant = _heater_variant(pool_data)
+        if variant is None:
+            # Kind unknown: naming a mode would be guessing which table to read.
+            return None
+        states, names = variant
+        if mode not in states:
+            # Reserved on this kind of heater, whatever it means elsewhere.
+            return None
+        if mode in names:
+            return names[mode]
+        return OUT_MODES.get(mode)
     override = OUT_MODE_NAME_OVERRIDES.get(index)
     if override and mode in override:
         return override[mode]

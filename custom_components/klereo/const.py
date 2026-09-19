@@ -203,6 +203,53 @@ _MODE_STATES_PH = {
     3: (OUT_STATE_KEEP,),                                # Régulé
 }
 
+# The heating output (4) is the one whose rules come from the payload rather
+# than from its index: params.HeaterMode says what it actually drives, and a
+# heat pump takes four modes where a dry-contact heater takes two — mode 3
+# reading "Réchauffe" on the one and "Régulé" on the other.
+HEATER_OUT_INDEX = 4
+
+# params.HeaterMode, from the firmware's own enum.
+HEATER_NONE = 0          # no heating at all
+HEATER_NORMAL = 1        # dry-contact heater
+HEATER_PAC_KLINK = 2     # Klereo heat pump driven over K-LINK
+HEATER_NOTARGET = 3
+HEATER_PAC_MODBUS = 4    # Klereo heat pump driven over ModBus
+
+_MODE_STATES_HEATER_CONTACT = {   # HEATER_NORMAL, HEATER_NOTARGET
+    0: (OUT_STATUS_OFF,),   # Manuel — stop only, as on the pH corrector
+    3: (OUT_STATE_KEEP,),   # Régulé
+}
+_MODE_STATES_HEATER_PAC = {       # HEATER_PAC_KLINK, HEATER_PAC_MODBUS
+    0: (OUT_STATUS_OFF,),   # Manuel — stop only
+    1: (OUT_STATE_KEEP,),   # Auto
+    2: (OUT_STATE_KEEP,),   # Refroidit
+    3: (OUT_STATE_KEEP,),   # Réchauffe
+}
+# A heat pump renames three modes, mode 3 included: the same number reads
+# "Régulé" on a dry-contact heater and "Réchauffe" here.
+_MODE_NAMES_HEATER_PAC = {1: "Auto", 2: "Refroidit", 3: "Réchauffe"}
+
+# HeaterMode -> (states by mode, name overrides). HEATER_NONE and any value
+# outside the enum are absent on purpose: nothing is written to a heating
+# output whose kind is not established, and a missing HeaterMode reads the
+# same way.
+HEATER_VARIANTS = {
+    HEATER_NORMAL:     (_MODE_STATES_HEATER_CONTACT, {}),
+    HEATER_NOTARGET:   (_MODE_STATES_HEATER_CONTACT, {}),
+    HEATER_PAC_KLINK:  (_MODE_STATES_HEATER_PAC, _MODE_NAMES_HEATER_PAC),
+    HEATER_PAC_MODBUS: (_MODE_STATES_HEATER_PAC, _MODE_NAMES_HEATER_PAC),
+}
+
+# {out index: {mode: permitted newState values}} for the outs whose rules do not
+# depend on the payload. The heating output is resolved separately, through
+# HEATER_VARIANTS — read every out through entity.klereo_out_mode_states(),
+# never this table directly, or the heating output will be missed.
+#
+# A mode's keys are also the modes that may be *offered* on that out, in the
+# firmware's own order. Anything outside them is reserved: where an out already
+# carries such a value, leave it untouched rather than writing one of these over
+# it.
 OUT_MODE_STATES = {
     0: _MODE_STATES_SWITCHED,
     2: _MODE_STATES_PH,
@@ -217,45 +264,16 @@ OUT_MODE_STATES = {
     14: _MODE_STATES_SWITCHED,
 }
 
-# Which modes may be offered for an out, by index — roles being fixed by index.
-# Anything outside these lists is reserved: if an out already carries such a
-# value, leave it untouched rather than writing one of these over it.
-#
-# Derived from OUT_MODE_STATES wherever the states are known, so the two tables
-# cannot drift apart. The outputs still awaiting their state rules keep an
-# explicit list, which is enough to name a mode but not to write one.
-#
-# Filtration (1) and hybrid chlorine (15) are deliberately absent: the firmware's
-# allowed list for them has not been supplied. Modes 0/1/3 and 2/3 have merely
-# been *observed* on them, which is not the same as being permitted, so nothing
-# offers a mode change on those two.
-_MODES_SWITCHED = tuple(_MODE_STATES_SWITCHED)  # 0, 1, 2, 4, 6, 8
-_MODES_PH = tuple(_MODE_STATES_PH)              # 0, 2, 3
-_MODES_REGULATED = (0, 3)   # disinfectant, flocculant, heating: states unknown
-OUT_MODE_CHOICES = {
-    0: _MODES_SWITCHED,
-    2: _MODES_PH,
-    3: _MODES_REGULATED,
-    4: _MODES_REGULATED,
-    5: _MODES_SWITCHED,
-    6: _MODES_SWITCHED,
-    7: _MODES_SWITCHED,
-    8: _MODES_REGULATED,
-    9: _MODES_SWITCHED,
-    10: _MODES_SWITCHED,
-    11: _MODES_SWITCHED,
-    12: _MODES_SWITCHED,
-    13: _MODES_SWITCHED,
-    14: _MODES_SWITCHED,
+# Modes seen on the outs nothing may write yet, kept for reference only: no
+# code reads this. The disinfectant and the flocculant were given (0, 3) before
+# the per-output tables existed, by the same list that covered the pH corrector
+# — which turned out to take (0, 2, 3) — so treat it as unconfirmed. Filtration
+# (1) and hybrid chlorine (15) never had one at all: 0/1/3 and 2/3 have merely
+# been *observed* on them, which is not the same as being permitted.
+OUT_MODES_UNCONFIRMED = {
+    3: (0, 3),   # disinfectant
+    8: (0, 3),   # flocculant
 }
-
-# Outs Home Assistant may write to: exactly those carrying an OUT_MODE_STATES
-# entry, since nothing may be written to an output whose permitted states are
-# unknown. That is lighting, the auxiliaries and the pH corrector today.
-# Everything else (filtration, disinfectant, heating, flocculant, hybrid
-# chlorine) stays read-only until the codeowner supplies its rules; their
-# entities still exist and still report state.
-WRITABLE_OUT_INDEXES = frozenset(OUT_MODE_STATES)
 
 # Icons, only where Home Assistant has no default of its own. Probe types that
 # carry a device_class (temperature, ph, pressure) are left alone: HA already
