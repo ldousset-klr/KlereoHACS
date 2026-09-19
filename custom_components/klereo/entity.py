@@ -17,10 +17,11 @@ def klereo_device_info(pool_data, poolid) -> DeviceInfo:
         name=pool_data.get("poolNickname") or f"Klereo pool #{poolid}",
         configuration_url="https://connect.klereo.fr",
     )
-    # The pod firmware revision, when the payload carries it.
-    pod_sw = pool_data.get("PodSW")
-    if pod_sw is not None:
-        info["sw_version"] = str(pod_sw)
+    # The firmware revision is tabSW, not PodSW: PodSW is the pod application
+    # number (a plain integer), tabSW is the board software version ("212D").
+    tab_sw = pool_data.get("tabSW")
+    if tab_sw:
+        info["sw_version"] = str(tab_sw)
     pod_serial = pool_data.get("podSerial")
     if pod_serial:
         info["serial_number"] = str(pod_serial)

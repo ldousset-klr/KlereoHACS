@@ -1,4 +1,5 @@
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (DOMAIN, PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
@@ -7,6 +8,14 @@ from .entity import IO_TYPE_PROBE, klereo_device_info, klereo_io_names
 
 import logging
 LOGGER = logging.getLogger(__name__)
+
+# Pieces of the pool's identity that DeviceInfo has no field for. They are
+# published as diagnostic sensors, which is how Home Assistant surfaces extra
+# device metadata on the device page.
+INFO_SENSORS = (
+    ("pin", "PIN", lambda data: (data.get("register") or {}).get("pin")),
+    ("device", "Device", lambda data: data.get("device")),
+)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
 
@@ -24,6 +33,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         LOGGER.info(f"Adding sensor for #{poolid}: {probe}")
         sensors.append(KlereoSensor(coordinator,probe,poolid,device_info,
                                     names.get(probe['index'])))
+    # Identity values, only when the payload carries them
+    for key, label, getter in INFO_SENSORS:
+        if getter(pool_data) is None:
+            LOGGER.debug(f"No {key} on pool #{poolid}, no diagnostic sensor")
+            continue
+        sensors.append(KlereoInfoSensor(coordinator, poolid, device_info,
+                                        key, label, getter))
     #add sensor enitities
     async_add_entities(sensors)
 
@@ -105,3 +121,29 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
             'Type': int(probe['type']),
             'TypeName': self._label
         }
+
+
+class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
+    """A read-only piece of the pool's identity, shown under Diagnostic."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, poolid, device_info, key, label, getter):
+        super().__init__(coordinator)
+        self._attr_device_info = device_info
+        # Same rule as everywhere else: unique_id follows the key, not the name.
+        self._key = f"klereo{poolid}{key}"
+        self._name = label
+        self._getter = getter
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def unique_id(self):
+        return f"id_{self._key}"
+
+    @property
+    def native_value(self):
+        return self._getter(self.coordinator.data)

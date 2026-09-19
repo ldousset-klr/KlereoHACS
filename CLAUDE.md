@@ -65,8 +65,14 @@ credential disclosure, not just a connection failure.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
   pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
   Both platforms build it once in `async_setup_entry` and pass it to each entity. Optional
-  fields (`sw_version` from `PodSW`, `serial_number` from `podSerial`) are only set when
-  the payload carries them, so a missing one is absent rather than the string `"None"`.
+  fields (`sw_version` from **`tabSW`**, the board software version like "212D" — *not*
+  `PodSW`, which is the pod application number — and `serial_number` from `podSerial`) are
+  only set when the payload carries them, so a missing one is absent rather than the
+  string `"None"`. `DeviceInfo` has no free-form field, so the pool's `register.pin` and
+  its `device` number are published as **diagnostic sensors** instead (`INFO_SENSORS` in
+  `sensor.py`), which is how Home Assistant surfaces extra device metadata on the device
+  page. `device` is the slot on the physical pod: the two systems sharing a `podSerial`
+  and a `pin` are device 0 and device 1.
   **The device is keyed on the poolID, and must stay that way**: one physical pod can serve
   several systems — two captured pools share a `podSerial` and a `register.pin` — so keying
   on the serial would merge them into a single device. Two HA devices showing the same
