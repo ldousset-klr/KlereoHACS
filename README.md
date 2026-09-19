@@ -19,10 +19,11 @@ One device per pool, named after its Klereo nickname, carrying:
 - **A mode selector** on each output you can drive, offering what that particular output
   accepts: *Manuel*, *Plages horaires*, *Minuterie*, *Synchronisé*, *Maintenance* and
   *Impulsion* on lighting and the auxiliaries; *Manuel*, *Volume fixe* and *Régulé* on the
-  pH corrector; *Manuel* and *Régulé* on a heater, or *Manuel*, *Auto*, *Refroidit* and
-  *Réchauffe* when the heating output drives a Klereo heat pump. Changing the mode leaves
-  the output doing whatever it was doing — except *Manuel* on the pH corrector and on the
-  heating, which stop them, the controller allowing nothing else there.
+  pH corrector and *Manuel* and *Volume fixe* on the flocculant; *Manuel* and *Régulé* on
+  a heater, or *Manuel*, *Auto*, *Refroidit* and *Réchauffe* when the heating output drives
+  a Klereo heat pump. Changing the mode leaves the output doing whatever it was doing —
+  except *Manuel* on the dosing pumps and on the heating, which stop them, the controller
+  allowing nothing else there.
 - **Diagnostic sensors** for the registration PIN and the device slot on the pod.
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
@@ -56,9 +57,9 @@ whatever address it holds**.
 
 ## Current limitations
 
-- **Only lighting, the auxiliaries, the pH corrector and the heating can be driven.**
-  Filtration, disinfectant, flocculant and hybrid chlorine report their state but refuse to
-  be written, until the rules for them are settled. That also makes the filtration speed
+- **Only lighting, the auxiliaries, the pH corrector, the flocculant and the heating can
+  be driven.** Filtration, disinfectant and hybrid chlorine report their state but refuse
+  to be written, until the rules for them are settled. That also makes the filtration speed
   read-only for now. The heating joins them when the controller does not say what it drives
   — a pool with no heating, or one whose `HeaterMode` the integration does not recognise.
 - **The mode selector only covers the outputs you can switch.** On the others the mode is
@@ -66,7 +67,7 @@ whatever address it holds**.
   nothing can change it.
 - **Some modes refuse a plain on/off, and say so.** The schedule owns the output in
   *Plages horaires* and *Synchronisé*, the regulator owns it in *Régulé*, *Auto*,
-  *Refroidit* and *Réchauffe*, and the pH corrector and the heating in *Manuel* can only be
+  *Refroidit* and *Réchauffe*, and the dosing pumps and the heating in *Manuel* can only be
   stopped — in each case the controller defines no such command and the switch reports an
   error instead of sending one. Change the mode first, with the mode selector.
 - **Water readings freeze while the filtration is off.** The controller does this on
@@ -194,16 +195,16 @@ differ from one output to the next**. Lighting and the auxiliaries:
 | 6 Maintenance | 0 off, 1 on, 2 keep |
 | 8 Impulsion | 0 off, 1 on, 2 keep |
 
-The pH corrector:
+The dosing pumps — the pH corrector, and the flocculant without the last row:
 
 | `newMode` | accepted `newState` |
 | --- | --- |
 | 0 Manuel | 0 off **only** |
 | 2 Volume fixe | 0 off, 1 on, 2 keep |
-| 3 Régulé | 2 keep |
+| 3 Régulé | 2 keep — pH corrector only |
 
 Mode 2 is the same mechanism in both tables; the controller just calls it *Minuterie* on
-one and *Volume fixe* on the other.
+the switched outputs and *Volume fixe* on the dosing pumps.
 
 The heating output, where `params.HeaterMode` decides which of the two applies:
 
@@ -226,9 +227,10 @@ commanding the output. Most modes take it; the pH corrector's *Manuel* does not,
 selecting that mode necessarily stops the pump. On the filtration output it is not a
 sentinel at all — there 2 is speed 2.
 
-The remaining outputs (disinfectant, flocculant) are listed as accepting modes 0 and 3,
-but that list predates the per-output tables above and the pH corrector — covered by the
-same list — turned out to accept 0, 2 and 3. Treat it as unconfirmed.
+The disinfectant is listed as accepting modes 0 and 3, but that list predates the
+per-output tables above, and the two outputs it also covered — the pH corrector and the
+flocculant — turned out to accept 0/2/3 and 0/2. It has been wrong twice, in both
+directions, so treat it as unconfirmed.
 
 A write is not reflected in `GetPoolDetails.php` until the controller has polled, so expect
 a lag of seconds before a read confirms it.

@@ -172,8 +172,12 @@ OUT_MODES = {
 # the switched outs and "Volume fixe" on the pH corrector; the codeowner
 # confirmed the two are functionally identical and only the label differs.
 # Read through entity.klereo_out_mode_name(), never OUT_MODES directly.
+# The dosing pumps — the pH corrector (2) and the flocculant (8) — call mode 2
+# "Volume fixe" where the switched outs call it "Minuterie".
+_MODE_NAMES_DOSING = {2: "Volume fixe"}
 OUT_MODE_NAME_OVERRIDES = {
-    2: {2: "Volume fixe"},  # pH corrector
+    2: _MODE_NAMES_DOSING,  # pH corrector
+    8: _MODE_NAMES_DOSING,  # flocculant
 }
 
 # What newState may carry, per out index and per mode. The permitted lists come
@@ -201,6 +205,15 @@ _MODE_STATES_PH = {
     0: (OUT_STATUS_OFF,),                                # Manuel
     2: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Volume fixe
     3: (OUT_STATE_KEEP,),                                # Régulé
+}
+
+# The flocculant (8), the same dosing pump without the regulation: Manuel and
+# Volume fixe, and no Régulé at all. Worth noting against the (0, 3) it had
+# been given before its real rules arrived — that list was wrong in both
+# directions, missing mode 2 and inventing mode 3.
+_MODE_STATES_FLOC = {
+    0: (OUT_STATUS_OFF,),                                # Manuel
+    2: (OUT_STATUS_OFF, OUT_STATUS_ON, OUT_STATE_KEEP),  # Volume fixe
 }
 
 # The heating output (4) is the one whose rules come from the payload rather
@@ -256,6 +269,7 @@ OUT_MODE_STATES = {
     5: _MODE_STATES_SWITCHED,
     6: _MODE_STATES_SWITCHED,
     7: _MODE_STATES_SWITCHED,
+    8: _MODE_STATES_FLOC,
     9: _MODE_STATES_SWITCHED,
     10: _MODE_STATES_SWITCHED,
     11: _MODE_STATES_SWITCHED,
@@ -265,14 +279,15 @@ OUT_MODE_STATES = {
 }
 
 # Modes seen on the outs nothing may write yet, kept for reference only: no
-# code reads this. The disinfectant and the flocculant were given (0, 3) before
-# the per-output tables existed, by the same list that covered the pH corrector
-# — which turned out to take (0, 2, 3) — so treat it as unconfirmed. Filtration
-# (1) and hybrid chlorine (15) never had one at all: 0/1/3 and 2/3 have merely
-# been *observed* on them, which is not the same as being permitted.
+# code reads this. The disinfectant was given (0, 3) before the per-output
+# tables existed, by a list that also covered the pH corrector and the
+# flocculant — and both turned out to differ from it, taking (0, 2, 3) and
+# (0, 2). So this is not merely unconfirmed, it has been wrong twice, in both
+# directions. Filtration (1) and hybrid chlorine (15) never had a list at all:
+# 0/1/3 and 2/3 have merely been *observed* on them, which is not the same as
+# being permitted.
 OUT_MODES_UNCONFIRMED = {
     3: (0, 3),   # disinfectant
-    8: (0, 3),   # flocculant
 }
 
 # Icons, only where Home Assistant has no default of its own. Probe types that
