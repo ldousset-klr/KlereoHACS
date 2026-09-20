@@ -25,9 +25,11 @@ One device per pool, named after its Klereo nickname, carrying:
   *Maintenance* on the filtration; *Manuel*, *Volume fixe* and *Régulé* on the pH corrector
   and *Manuel* and *Volume fixe* on the flocculant; *Manuel* and *Régulé* on a heater, or
   *Manuel*, *Auto*, *Refroidit* and *Réchauffe* when the heating output drives a Klereo
-  heat pump. Changing the mode leaves the output doing whatever it was doing — including
-  the filtration, which keeps its speed — except *Manuel* on the dosing pumps and on the
-  heating, which stop them, the controller allowing nothing else there.
+  heat pump; and on the disinfectant, whatever the pool is treated with — chlorine, bromine,
+  oxygen or an electrolyser each offer their own list. Changing the mode leaves the output
+  doing whatever it was doing — including the filtration, which keeps its speed — except
+  *Manuel* on the dosing pumps, the disinfectant and the heating, which stop them, the
+  controller allowing nothing else there.
 - **Diagnostic sensors** for the registration PIN and the device slot on the pod.
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
@@ -61,10 +63,10 @@ whatever address it holds**.
 
 ## Current limitations
 
-- **The disinfectant and hybrid chlorine cannot be driven.** They report their state but
-  refuse to be written, until the rules for them are settled. The heating joins them when
-  the controller does not say what it drives — a pool with no heating, or one whose
-  `HeaterMode` the integration does not recognise.
+- **Hybrid chlorine cannot be driven.** It reports its state but refuses to be written,
+  until the rules for it are settled. The heating and the disinfectant join it when the
+  controller does not say what the pool is equipped with — no heating or no treatment, or a
+  `HeaterMode` or `TraitMode` the integration does not recognise.
 - **Turning the filtration on from the switch resumes its last known speed** — the one it
   was last seen running at, visible as the switch's `LastSpeed` attribute and remembered
   across restarts. It falls back to speed 1 if the pump has not been seen running since
@@ -212,6 +214,30 @@ The dosing pumps — the pH corrector, and the flocculant without the last row:
 
 Mode 2 is the same mechanism in both tables; the controller just calls it *Minuterie* on
 the switched outputs and *Volume fixe* on the dosing pumps.
+
+The disinfectant, where `params.TraitMode` decides which list applies. Note mode 2 is a
+dosing mode on chlorine, bromine and oxygen but a **regulation** mode on an electrolyser,
+taking nothing but keep:
+
+| `TraitMode` | treatment | `newMode` | accepted `newState` |
+| --- | --- | --- | --- |
+| 1 | chlorine | 0 Manuel | 0 off **only** |
+| | | 2 Volume fixe | 0 off, 1 on, 2 keep |
+| | | 3 Régulé | 2 keep |
+| 4 | oxygen | 0 Manuel | 0 off **only** |
+| | | 2 Volume fixe | 0 off, 1 on, 2 keep |
+| | | 3 Régulé température | 2 keep |
+| 5 | bromine | 0 Manuel | 0 off **only** |
+| | | 2 Temps fixe | 0 off, 1 on, 2 keep |
+| | | 3 Régulé | 2 keep |
+| | | 4 Synchronisé filtration | 2 keep |
+| 2, 3, 6, 8 | electrolyser | 0 Manuel | 0 off **only** |
+| | | 2 Régulé température | 2 keep |
+| | | 3 Régulé redox | 2 keep |
+| | | 4 Synchronisé filtration | 2 keep |
+| | | 5 Choc | 2 keep |
+
+`TraitMode` 0 and 7 mean no treatment the integration can drive.
 
 The heating output, where `params.HeaterMode` decides which of the two applies:
 

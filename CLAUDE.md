@@ -115,9 +115,9 @@ credential disclosure, not just a connection failure.
   non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
 - `select.py` — one entity per writable out, its drive mode. Offered exactly where
-  `klereo_out_mode_states()` answers — so every out but the disinfectant and hybrid
-  chlorine has one. The options are resolved **once, in `__init__`**: `HeaterMode` and
-  `PumpMaxSpeed` describe how the output is wired, which is a reinstallation rather than
+  `klereo_out_mode_states()` answers — so every out but hybrid chlorine has one. The
+  options are resolved **once, in `__init__`**: `HeaterMode`, `TraitMode` and
+  `PumpMaxSpeed` describe how the pool is equipped, which is a reinstallation rather than
   something that changes under a poll. The write sends
   `OUT_STATE_KEEP` as `newState` **wherever the target mode accepts it**, so changing the
   mode normally leaves the output doing what it was doing; the pH corrector's Manuel is the
@@ -181,8 +181,9 @@ The rest of the code depends on these keys:
   `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax` mirror the
   matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`, `AirMin/Max`,
   `PressureMin/Max`) — **usually**: one pool's pressure probe bounds 200..2400 against a
-  `PressureMax` of 1100, so this is a hint, not an invariant. `params.HeaterMode` is read
-  too, and decides what the heating out may be set to — see the writes section below. It is how `PROBE_TYPES` was
+  `PressureMax` of 1100, so this is a hint, not an invariant. `params.HeaterMode` and
+  `params.TraitMode` are read too, and decide what the heating and the disinfectant may be
+  set to — see the writes section below. It is how `PROBE_TYPES` was
   first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
   its pressure probe correctly — so trust `probes[].type`, not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
@@ -244,8 +245,11 @@ output alone or `None`, and `speed` marks the states as speed indexes. Inferring
 from `states` would start the pump on a mode change, or let the speed control write a 2
 the controller reads as "leave it alone".
 
-The **heating output** (index 4) is payload-dependent for a different reason: its rules
-come from what it drives, not from how many speeds a pump has. `params.HeaterMode` says what the output drives — 1 a dry-contact heater,
+The **heating output** (4) and the **disinfectant** (3) are payload-dependent for a
+different reason: their rules come from what the pool is equipped with. `PAYLOAD_VARIANTS`
+maps each to the `params` key that decides — `HeaterMode` and `TraitMode` — and to the
+variants it selects, so a third such output is a line there rather than another special
+case. `params.HeaterMode` says what the output drives — 1 a dry-contact heater,
 2 and 4 a Klereo heat pump (K-LINK and ModBus), 3 HEAT_NOTARGET, 0 no heating. A heater
 takes Manuel and Régulé; a heat pump takes Manuel, Auto, Refroidit and Réchauffe. Manuel
 is stop-only on both, and every other mode takes `OUT_STATE_KEEP` alone. **Mode 3 is
@@ -253,6 +257,18 @@ is stop-only on both, and every other mode takes `OUT_STATE_KEEP` alone. **Mode 
 named differently by what it is wired to. `HEATER_NONE`, a value outside the enum, and a
 missing `HeaterMode` all read alike: the kind is not established, so the output stays
 read-only and its modes go unnamed rather than being guessed from the wrong table.
+
+The **disinfectant** reads `params.TraitMode` (the firmware's `e_Traitements`) the same
+way, and its families barely resemble each other. Chlorine takes Manuel, Volume fixe and
+Régulé; bromine adds Synchronisé filtration and calls mode 2 *Temps fixe*; oxygen matches
+chlorine but names mode 3 *Régulé température*; an **electrolyser** — whatever bus it is
+driven over — has no dosing mode at all, offering Manuel plus four regulation modes, and
+uses mode 2 for *Régulé température*, where it takes the keep sentinel alone rather than
+on/off. So mode 2 carries **four different labels and two different state sets** on this
+one output, depending only on `TraitMode`. Mode 5 (*Choc*) exists nowhere else, which is
+why `OUT_MODES` does not name it and the variant's own table does. `TRAIT_NONE`,
+`TRAIT_IGNORE`, a value outside the enum and a missing `TraitMode` all leave the output
+read-only.
 
 That is why **nothing reads the mode tables directly**. `entity.klereo_out_mode_states()`
 is the single answer to both "may this be written" and "which modes may it offer" — it
@@ -283,11 +299,11 @@ water treatment. The accepted cost is that toggling a regulated output may appea
 nothing, the regulator still owning its state — so don't "fix" an inert switch on such an
 output by writing a mode.
 
-**Everything but the disinfectant (3) and hybrid chlorine (15) may now be written**:
-lighting (0), the filtration (1), the pH corrector (2), the flocculant (8), the auxiliaries
-(5-7, 9-14) and the heating (4, when `params.HeaterMode` names a kind). An output becomes
-writable exactly when its permitted states arrive, since the one resolver answers both
-questions. The two that remain still report state; a turn_on/turn_off on them raises
+**Everything but hybrid chlorine (15) may now be written**: lighting (0), the filtration
+(1), the pH corrector (2), the flocculant (8), the auxiliaries (5-7, 9-14), and the heating
+(4) and disinfectant (3) when their `params` key names a kind. An output becomes writable
+exactly when its permitted states arrive, since the one resolver answers both questions.
+What remains read-only still reports state; a turn_on/turn_off on it raises
 `ServiceValidationError` with the `out_read_only` key, which lives in the `exceptions`
 section of `strings.json` and both translations.
 
@@ -297,22 +313,27 @@ not merely unless the value is permitted, since in Plages horaires the permitted
 keep sentinel and Maintenance's 0/1 are off and on. Writing either from a speed control
 would send a number the controller reads as something else.
 
-The modes an out permits are the keys of its rules — `OUT_MODE_STATES`, or
-`HEATER_VARIANTS` and `filtration_mode_states()` for the two payload-dependent outputs —
-so the list and the states can never disagree: lighting and auxiliaries take 0/1/2/4/6/8,
-the filtration 0/1/3/6, the pH corrector 0/2/3, the flocculant 0/2, a dry-contact heater
-0/3 and a heat pump 0/1/2/3. `OUT_MODES_UNCONFIRMED` holds the `(0, 3)`
-given for the disinfectant; **no code reads it**. It came from a list that also covered the
-pH corrector and the flocculant, and **both turned out to differ from it** — `(0, 2, 3)`
-and `(0, 2)` — so it has been wrong twice, in both directions. Hybrid chlorine (15) never had a list at all:
-2/3 has merely been *observed* on it, which is not the same thing. Values outside a rule's
-list are reserved and must be left alone where an out already carries one.
+The modes an out permits are the keys of its rules — `OUT_MODE_STATES`, the tables
+`PAYLOAD_VARIANTS` selects, or `filtration_mode_states()` — so the list and the states can
+never disagree: lighting and auxiliaries take 0/1/2/4/6/8, the filtration 0/1/3/6, the pH
+corrector 0/2/3, the flocculant 0/2, a dry-contact heater 0/3, a heat pump 0/1/2/3, a
+chlorine or oxygen disinfectant 0/2/3, a bromine one 0/2/3/4 and an electrolyser
+0/2/3/4/5.
+
+The `(0, 3)` once recorded for the disinfectant was wrong in every direction, and it is
+gone: chlorine and oxygen take 0/2/3, bromine 0/2/3/4, an electrolyser 0/2/3/4/5. That
+list had also covered the pH corrector and the flocculant, which turned out to take
+`(0, 2, 3)` and `(0, 2)` — three outputs, three contradictions. **Hybrid chlorine (15) is
+the last out with no rules**, and 2/3 has merely been *observed* on it, which is not the
+same thing. Values outside a rule's list are reserved and must be left alone where an out
+already carries one.
 
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- Nothing exposes an out's mode on the read-only outputs: the disinfectant and hybrid
-  chlorine get no `select` and no write, their permitted states never having been supplied.
-  The mode is still visible as the switch's `Mode`/`ModeName` attributes.
+- Nothing exposes an out's mode on hybrid chlorine, the last output with no rules at all:
+  it gets no `select` and no write. The mode is still visible as the switch's
+  `Mode`/`ModeName` attributes. A heating or disinfectant whose `params` key names no kind
+  reads the same way.
 - A filtration never seen running since Home Assistant started, and with no restored
   state, still turns on at speed 1. There is nowhere else to learn a speed from: a stopped
   pump reports `status: 0` and the payload keeps no history.

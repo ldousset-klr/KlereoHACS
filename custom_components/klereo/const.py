@@ -277,6 +277,79 @@ HEATER_VARIANTS = {
 # firmware's own order. Anything outside them is reserved: where an out already
 # carries such a value, leave it untouched rather than writing one of these over
 # it.
+# The disinfectant (3). params.TraitMode says what the pool is treated with,
+# and the families barely resemble each other: chlorine and bromine dose on a
+# timer, oxygen too, and an electrolyser has no dosing mode at all but four
+# regulation modes instead. Mode 2 is "Volume fixe" on chlorine and oxygen,
+# "Temps fixe" on bromine and **"Régulé température"** on an electrolyser,
+# where it takes the keep sentinel alone rather than on/off.
+DISINFECTANT_OUT_INDEX = 3
+
+# params.TraitMode, from the firmware's e_Traitements enum.
+TRAIT_NONE = 0
+TRAIT_CHLORE = 1
+TRAIT_ELECTRO_X = 2
+TRAIT_ELECTRO_COR = 3
+TRAIT_OXYGEN = 4
+TRAIT_BROME = 5
+TRAIT_ELECTRO_BSV = 6
+TRAIT_IGNORE = 7
+TRAIT_ELECTRO_KLR = 8
+
+_MODE_STATES_TRAIT_CHLORE = {
+    0: _rule((OUT_STATUS_OFF,)),                    # Manuel — stop only
+    2: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Volume fixe
+    3: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Régulé
+}
+_MODE_NAMES_TRAIT_CHLORE = {2: "Volume fixe"}
+
+# The electrolysers, whatever they are driven over. No dosing mode: every mode
+# but Manuel hands the cell to a regulator and takes the keep sentinel alone.
+# Mode 5 (Choc) exists nowhere else, which is why OUT_MODES does not name it.
+_MODE_STATES_TRAIT_ELECTRO = {
+    0: _rule((OUT_STATUS_OFF,)),                    # Manuel — stop only
+    2: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Régulé température
+    3: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Régulé redox
+    4: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Synchronisé filtration
+    5: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Choc
+}
+_MODE_NAMES_TRAIT_ELECTRO = {
+    2: "Régulé température",
+    3: "Régulé redox",
+    4: "Synchronisé filtration",
+    5: "Choc",
+}
+
+_MODE_STATES_TRAIT_OXYGEN = {
+    0: _rule((OUT_STATUS_OFF,)),                    # Manuel — stop only
+    2: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Volume fixe
+    3: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Régulé température
+}
+_MODE_NAMES_TRAIT_OXYGEN = {2: "Volume fixe", 3: "Régulé température"}
+
+_MODE_STATES_TRAIT_BROME = {
+    0: _rule((OUT_STATUS_OFF,)),                    # Manuel — stop only
+    2: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Temps fixe
+    3: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Régulé
+    4: _rule((OUT_STATE_KEEP,), OUT_STATE_KEEP),    # Synchronisé filtration
+}
+_MODE_NAMES_TRAIT_BROME = {2: "Temps fixe", 4: "Synchronisé filtration"}
+
+_ELECTRO = (_MODE_STATES_TRAIT_ELECTRO, _MODE_NAMES_TRAIT_ELECTRO)
+
+# TraitMode -> (states by mode, name overrides). TRAIT_NONE and TRAIT_IGNORE
+# are absent on purpose, as is any value outside the enum: nothing is written
+# to a disinfectant whose treatment is not established.
+TRAIT_VARIANTS = {
+    TRAIT_CHLORE:      (_MODE_STATES_TRAIT_CHLORE, _MODE_NAMES_TRAIT_CHLORE),
+    TRAIT_ELECTRO_X:   _ELECTRO,
+    TRAIT_ELECTRO_COR: _ELECTRO,
+    TRAIT_ELECTRO_BSV: _ELECTRO,
+    TRAIT_ELECTRO_KLR: _ELECTRO,
+    TRAIT_OXYGEN:      (_MODE_STATES_TRAIT_OXYGEN, _MODE_NAMES_TRAIT_OXYGEN),
+    TRAIT_BROME:       (_MODE_STATES_TRAIT_BROME, _MODE_NAMES_TRAIT_BROME),
+}
+
 # The filtration (1), the second output whose rules come from the payload: its
 # Manuel takes a *speed index*, 0 (stopped) to the pool's own PumpMaxSpeed, so
 # the permitted list is as long as the pump has speeds.
@@ -296,6 +369,14 @@ def filtration_mode_states(max_speed):
     }
 
 
+# The outs whose rules are not a property of their index: the params key that
+# decides, and the variants it selects. entity.klereo_out_mode_states() reads
+# this, so a third such output is a line here rather than another special case.
+PAYLOAD_VARIANTS = {
+    HEATER_OUT_INDEX: ("HeaterMode", HEATER_VARIANTS),
+    DISINFECTANT_OUT_INDEX: ("TraitMode", TRAIT_VARIANTS),
+}
+
 OUT_MODE_STATES = {
     0: _MODE_STATES_SWITCHED,
     2: _MODE_STATES_PH,
@@ -311,16 +392,10 @@ OUT_MODE_STATES = {
     14: _MODE_STATES_SWITCHED,
 }
 
-# Modes seen on the outs nothing may write yet, kept for reference only: no
-# code reads this. The disinfectant was given (0, 3) before the per-output
-# tables existed, by a list that also covered the pH corrector and the
-# flocculant — and both turned out to differ from it, taking (0, 2, 3) and
-# (0, 2). So this is not merely unconfirmed, it has been wrong twice, in both
-# directions. Hybrid chlorine (15) never had a list at all: 2/3 has merely been
-# *observed* on it, which is not the same as being permitted.
-OUT_MODES_UNCONFIRMED = {
-    3: (0, 3),   # disinfectant
-}
+# Hybrid chlorine (15) is the one out left with no rules at all. Modes 2 and 3
+# have been *observed* on it, which is not the same as being permitted, and
+# nothing reads that: it stays read-only until its permitted modes and states
+# are supplied, like every other output before it.
 
 # Icons, only where Home Assistant has no default of its own. Probe types that
 # carry a device_class (temperature, ph, pressure) are left alone: HA already

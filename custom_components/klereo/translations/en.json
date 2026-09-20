@@ -45,7 +45,7 @@
   },
   "exceptions": {
     "out_read_only": {
-      "message": "{name} cannot be driven from Home Assistant: the controller has not said which states it accepts, or — on the heating — what it drives."
+      "message": "{name} cannot be driven from Home Assistant: the controller has not said which states it accepts — or, on the heating and the disinfectant, what the pool is equipped with."
     },
     "out_mode_no_switching": {
       "message": "{name} is in {mode} mode, which only accepts the state the controller already has: switching it on or off there is not defined. Change the mode first."

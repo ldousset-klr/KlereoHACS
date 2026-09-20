@@ -2,9 +2,9 @@
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import (DOMAIN, FILTRATION_OUT_INDEX, HEATER_OUT_INDEX,
-                    HEATER_VARIANTS, MAX_PUMP_SPEED, OUT_MODE_NAME_OVERRIDES,
-                    OUT_MODE_STATES, OUT_MODES, filtration_mode_states)
+from .const import (DOMAIN, FILTRATION_OUT_INDEX, MAX_PUMP_SPEED,
+                    OUT_MODE_NAME_OVERRIDES, OUT_MODE_STATES, OUT_MODES,
+                    PAYLOAD_VARIANTS, filtration_mode_states)
 
 
 def klereo_device_info(pool_data, poolid) -> DeviceInfo:
@@ -49,15 +49,21 @@ def klereo_io_names(pool_data, io_type):
     return names
 
 
-def _heater_variant(pool_data):
-    """The heating output's rules on this pool, or None if it has none.
+def _payload_variant(pool_data, index):
+    """The rules for an out whose kind a params key decides, or None.
 
-    params.HeaterMode says what the output actually drives. A value outside
-    the enum, HEATER_NONE, or no params at all all mean the same thing here:
-    the kind is not established, so nothing is written.
+    The heating reads params.HeaterMode and the disinfectant params.TraitMode:
+    what the output is wired to, or what the pool is treated with, decides both
+    the modes it takes and what they are called. A value the enum does not
+    cover, one that means "none", and no params at all read alike — the kind is
+    not established, so nothing is written.
     """
+    spec = PAYLOAD_VARIANTS.get(index)
+    if spec is None:
+        return None
+    params_key, variants = spec
     params = pool_data.get("params") or {}
-    return HEATER_VARIANTS.get(params.get("HeaterMode"))
+    return variants.get(params.get(params_key))
 
 
 def klereo_pump_max_speed(pool_data):
@@ -79,13 +85,12 @@ def klereo_out_mode_states(pool_data, index):
     "which modes may it offer": an out is writable exactly when its permitted
     states are known, and the keys are the modes, in the firmware's own order.
 
-    Most outs answer from their index alone. Two answer from the payload: the
-    heating, a heat pump taking four modes where a dry-contact heater takes
-    two, and the filtration, whose Manuel takes a speed index running up to
-    the pool's own PumpMaxSpeed.
+    Most outs answer from their index alone. Three answer from the payload: the
+    heating and the disinfectant through PAYLOAD_VARIANTS, and the filtration,
+    whose Manuel takes a speed index running up to the pool's own PumpMaxSpeed.
     """
-    if index == HEATER_OUT_INDEX:
-        variant = _heater_variant(pool_data)
+    if index in PAYLOAD_VARIANTS:
+        variant = _payload_variant(pool_data, index)
         return variant[0] if variant else None
     if index == FILTRATION_OUT_INDEX:
         return filtration_mode_states(klereo_pump_max_speed(pool_data))
@@ -95,21 +100,22 @@ def klereo_out_mode_states(pool_data, index):
 def klereo_out_mode_name(pool_data, index, mode):
     """The name an out gives one of its modes, or None if the mode is reserved.
 
-    A mode number does not always carry the same label. Mode 2 is "Minuterie"
-    on the switched outs and "Volume fixe" on the pH corrector; mode 3 is
-    "Régulé" on a dry-contact heater and "Réchauffe" on a heat pump — so the
-    heating output's wording depends on the payload, not just on its index.
-    Everything user-facing goes through here rather than reading OUT_MODES, so
-    an out never shows another out's wording.
+    A mode number does not always carry the same label. Mode 2 is "Minuterie" on
+    the switched outs, "Volume fixe" on the dosing pumps, "Temps fixe" on a
+    bromine disinfectant and "Régulé température" on an electrolyser; mode 3 is
+    "Régulé" on a dry-contact heater and "Réchauffe" on a heat pump. So the
+    wording of the payload-driven outs depends on the payload, not just on the
+    index. Everything user-facing goes through here rather than reading
+    OUT_MODES, so an out never shows another out's wording.
     """
-    if index == HEATER_OUT_INDEX:
-        variant = _heater_variant(pool_data)
+    if index in PAYLOAD_VARIANTS:
+        variant = _payload_variant(pool_data, index)
         if variant is None:
             # Kind unknown: naming a mode would be guessing which table to read.
             return None
         states, names = variant
         if mode not in states:
-            # Reserved on this kind of heater, whatever it means elsewhere.
+            # Reserved on this kind of output, whatever it means elsewhere.
             return None
         if mode in names:
             return names[mode]

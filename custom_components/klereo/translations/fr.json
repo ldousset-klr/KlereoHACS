@@ -45,7 +45,7 @@
   },
   "exceptions": {
     "out_read_only": {
-      "message": "{name} n'est pas pilotable depuis Home Assistant : le coffret n'a pas indiqué quels états elle accepte, ou — pour le chauffage — ce qu'elle pilote."
+      "message": "{name} n'est pas pilotable depuis Home Assistant : le coffret n'a pas indiqué quels états elle accepte — ou, pour le chauffage et le désinfectant, de quoi le bassin est équipé."
     },
     "out_mode_no_switching": {
       "message": "{name} est en mode {mode}, qui n'accepte que l'état déjà en place sur le coffret : l'allumer ou l'éteindre n'y est pas défini. Change d'abord le mode."
