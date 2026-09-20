@@ -14,7 +14,7 @@ from .klereo_api import KlereoAPI, KlereoAuthError, KlereoError
 import logging
 LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "switch", "number"]
+PLATFORMS = ["sensor", "switch", "number", "select"]
 
 # There is nothing to set up from YAML: the integration is config-entry only.
 # Declaring it makes Home Assistant reject a klereo: block with a clear message,

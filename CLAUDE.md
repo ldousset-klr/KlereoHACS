@@ -69,7 +69,7 @@ credential disclosure, not just a connection failure.
   blocking `requests` calls), and drives a `DataUpdateCoordinator` polling every
   `UPDATE_INTERVAL` (300 s). Coordinator + api are stashed in
   `hass.data[DOMAIN][entry.entry_id]` for the platforms.
-  `PLATFORMS = ["sensor", "switch", "number"]`.
+  `PLATFORMS = ["sensor", "switch", "number", "select"]`.
   The update callback maps `KlereoAuthError` to `ConfigEntryAuthFailed` (triggering the
   reauth flow) and `KlereoError`/`RequestException` to `UpdateFailed`.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
@@ -109,17 +109,36 @@ credential disclosure, not just a connection failure.
   the same three keys, so nothing migrates.
 - `number.py` — the filtration speed, the one out whose `status` is a speed index. It is
   created only when the pool declares `PumpMaxSpeed > 1`, so pools with no speed control
-  keep just their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`. Values 0, 1
+  keep just their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`, resolved by
+  `klereo_pump_max_speed()` which the filtration's own rules share. Values 0, 1
   and 3 have been seen and **0 is a real answer, not a missing one** — only an absent or
   non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
+- `select.py` — one entity per writable out, its drive mode. Offered exactly where
+  `klereo_out_mode_states()` answers — so every out has one, save a heating or
+  disinfectant whose kind the payload does not name. The options are resolved **once, in `__init__`**: `HeaterMode`, `TraitMode` and
+  `PumpMaxSpeed` describe how the pool is equipped, which is a reinstallation rather than
+  something that changes under a poll. The write sends
+  `OUT_STATE_KEEP` as `newState` **wherever the target mode accepts it**, so changing the
+  mode normally leaves the output doing what it was doing; the pH corrector's Manuel is the
+  exception, taking only "off", so selecting it stops the dosing. `current_option` returns `None` rather than a name when the out
+  carries a mode outside its permitted list: a reserved value must be left alone, and Home
+  Assistant rejects a state that is not among the options anyway.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
   re-scan `coordinator.data` on every property read rather than caching. Each entity keeps
   `_key` (`klereo<poolid>probe<index>`) separate from `_name`: **`unique_id` is built from
   `_key` and must never follow the name**, or renaming a probe in Klereo would orphan the
   entity and lose its history. `_name` is the `IORename` label when there is one, else
-  `_key`. A sensor falls back once more before the key: `PROBE_LABELS` in `const.py`
+  `_key`. `KlereoOut` is also a `RestoreEntity`, for the filtration alone: turning that
+  out on has to name a speed, and **a stopped pump reports `status: 0`**, so the speed it
+  was last running at is nowhere in the payload. `_learn_speed()` takes it from every poll
+  that shows the pump running, `_on_state()` sends it back instead of `OUT_STATUS_ON`
+  where the mode's rule says its states are speeds, and it is published as the `LastSpeed`
+  attribute — which is also how `async_added_to_hass()` recovers it after a restart that
+  happened while the pump was stopped. A speed that no longer fits the pool's
+  `PumpMaxSpeed` is not in the rule's states and is ignored, falling back to speed 1.
+  A sensor falls back once more before the key: `PROBE_LABELS` in `const.py`
   gives the controller's own name for each probe **index** (0-31). That table is keyed on
   the index, not the type, and the two disagree on a few installs — a type 10 generic at
   index 20 whose label reads "Température air 3" — so it is only ever a fallback, never
@@ -162,7 +181,9 @@ The rest of the code depends on these keys:
   `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax` mirror the
   matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`, `AirMin/Max`,
   `PressureMin/Max`) — **usually**: one pool's pressure probe bounds 200..2400 against a
-  `PressureMax` of 1100, so this is a hint, not an invariant. It is how `PROBE_TYPES` was
+  `PressureMax` of 1100, so this is a hint, not an invariant. `params.HeaterMode` and
+  `params.TraitMode` are read too, and decide what the heating and the disinfectant may be
+  set to — see the writes section below. It is how `PROBE_TYPES` was
   first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
   its pressure probe correctly — so trust `probes[].type`, not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
@@ -200,35 +221,129 @@ handover happens in seconds rather than at the next 300 s poll.
 hardcoded to 2**, so every write silently put its output into timer mode, including
 outputs for which 2 is not even permitted. `set_out()` now takes it explicitly and has no
 default; the switch and the speed entity pass the out's *current* mode through, so a write
-changes the state and nothing else. **That is the codeowner's decision, not a fallback**:
+changes the state and nothing else.
+
+**The two fields are not independent**, and **the rules differ per output**:
+`OUT_MODE_STATES` is keyed by out index, then by mode, and the codeowner supplies it one
+output family at a time. The same mode number does not take the same states everywhere.
+
+`2` — `OUT_STATE_KEEP`, the same number that reads back as *unknown* — usually means
+"apply the mode and leave the output's state alone", which is what makes a mode change
+possible without also commanding the output. On the **switched outs** (lighting and the
+auxiliaries) every mode accepts it; Manuel, Minuterie, Maintenance and Impulsion take `0`
+and `1` as well, while **Plages horaires and Synchronisé take nothing else**, the schedule
+owning the output there.
+
+The **filtration** (index 1) is where the encoding stops being uniform, and it is why a
+mode's rule is a `ModeRule` naming what its states *mean* rather than a bare list. Its
+Manuel takes a **speed index**, 0 to the pool's own `PumpMaxSpeed`; Plages horaires and
+Régulé take the keep sentinel; Maintenance takes 0 (Arrêt) and 1 (Marche) and has no keep.
+So `newState: 2` is the keep sentinel in two of its modes, **speed 2** in Manuel, and not
+permitted at all in the fourth — one number, three meanings on one output, told apart only
+by the mode. Hence `ModeRule(states, keep, speed)`: `keep` is the value that leaves the
+output alone or `None`, and `speed` marks the states as speed indexes. Inferring either
+from `states` would start the pump on a mode change, or let the speed control write a 2
+the controller reads as "leave it alone".
+
+The **heating output** (4) and the **disinfectant** (3) are payload-dependent for a
+different reason: their rules come from what the pool is equipped with. `PAYLOAD_VARIANTS`
+maps each to the `params` key that decides — `HeaterMode` and `TraitMode` — and to the
+variants it selects, so a third such output is a line there rather than another special
+case. `params.HeaterMode` says what the output drives — 1 a dry-contact heater,
+2 and 4 a Klereo heat pump (K-LINK and ModBus), 3 HEAT_NOTARGET, 0 no heating. A heater
+takes Manuel and Régulé; a heat pump takes Manuel, Auto, Refroidit and Réchauffe. Manuel
+is stop-only on both, and every other mode takes `OUT_STATE_KEEP` alone. **Mode 3 is
+"Régulé" on the heater and "Réchauffe" on the pump** — the same number on the same output,
+named differently by what it is wired to. `HEATER_NONE`, a value outside the enum, and a
+missing `HeaterMode` all read alike: the kind is not established, so the output stays
+read-only and its modes go unnamed rather than being guessed from the wrong table.
+
+The **disinfectant** reads `params.TraitMode` (the firmware's `e_Traitements`) the same
+way, and its families barely resemble each other. Chlorine takes Manuel, Volume fixe and
+Régulé; bromine adds Synchronisé filtration and calls mode 2 *Temps fixe*; oxygen matches
+chlorine but names mode 3 *Régulé température*; an **electrolyser** — whatever bus it is
+driven over — has no dosing mode at all, offering Manuel plus four regulation modes, and
+uses mode 2 for *Régulé température*, where it takes the keep sentinel alone rather than
+on/off. So mode 2 carries **four different labels and two different state sets** on this
+one output, depending only on `TraitMode`. Mode 5 (*Choc*) exists nowhere else, which is
+why `OUT_MODES` does not name it and the variant's own table does. `TRAIT_NONE`,
+`TRAIT_IGNORE`, a value outside the enum and a missing `TraitMode` all leave the output
+read-only.
+
+That is why **nothing reads the mode tables directly**. `entity.klereo_out_mode_states()`
+is the single answer to both "may this be written" and "which modes may it offer" — it
+returns `None` for a read-only out and, otherwise, `{mode: ModeRule}` whose keys are the
+modes in the firmware's order. `entity.klereo_out_mode_name()` is the matching
+answer for wording. Both take `pool_data`, and there is no `WRITABLE_OUT_INDEXES`
+constant any more: writability is a property of a pool *and* an out, not of an out alone.
+
+The **dosing pumps** — the pH corrector (2) and the flocculant (8) — break the pattern
+twice. Their Manuel accepts **only `0`**: a dosing pump put back under manual control is
+stopped, it cannot be commanded on and it cannot keep its state, so selecting Manuel there
+does stop the dosing, which is the firmware's rule and not the integration's choice. `KlereoOutMode._state_for()` therefore
+sends `rule.keep` where the mode has one, the mode's single permitted state where it does
+not (stopping the output), and otherwise **the out's current `status`** — which is how the
+filtration keeps its speed across a move into Manuel, the protocol having no sentinel
+there. A status outside the permitted list raises `out_mode_ambiguous_state` rather than
+guessing. Their mode 2 is
+also named **"Volume fixe"** rather than "Minuterie" — functionally identical, the
+codeowner confirmed, only the label differs. The pH corrector adds Régulé to the pair; the
+flocculant has no regulation and takes those two modes only.
+
+`KlereoOut._writable_mode()` refuses a turn_on/turn_off the out's current mode does not
+accept, with the `out_mode_no_switching` key, rather than sending a combination the
+firmware does not define. **That is the codeowner's decision, not a fallback**:
 forcing `0` (Manuel) would make a switch behave the way people expect, but it would also
 pull the pH corrector, the disinfectant or the heater out of regulation and disturb the
 water treatment. The accepted cost is that toggling a regulated output may appear to do
 nothing, the regulator still owning its state — so don't "fix" an inert switch on such an
 output by writing a mode.
 
-**Only lighting (index 0) and the auxiliaries (5-7, 9-14) may be written**, per
-`WRITABLE_OUT_INDEXES`. Filtration, pH, disinfectant, heating, flocculant and hybrid
-chlorine are read-only until the codeowner specifies how `SetOut` should be called on
-them. Their entities still exist and still report state; a turn_on/turn_off raises
-`ServiceValidationError` with the `out_read_only` key, which lives in the `exceptions`
-section of `strings.json` and both translations. **This also makes the filtration speed
-entity read-only**, since it writes out 1 — it reports the speed and refuses to set it,
-which is odd for a `number` but avoids churning the entity's domain twice when the
-restriction lifts.
+**Every output now carries its rules.** Lighting (0), the filtration (1), the pH corrector
+(2), the flocculant (8), hybrid chlorine (15) and the auxiliaries (5-7, 9-14) answer from
+their index; the heating (4) and the disinfectant (3) answer from the payload and stay
+read-only while their `params` key names no kind. So `out_read_only` is no longer a
+property of an output but of a pool that has not said what it is equipped with — it still
+lives in the `exceptions` section of `strings.json` and both translations, and an out that
+raises it still reports state.
 
-`OUT_MODE_CHOICES` lists, per out index, the modes the firmware permits: lighting and
-auxiliaries take 0/1/2/4/6/8, and the regulated outputs (pH, disinfectant, flocculant,
-heating) take 0/3 only. Values outside those lists are reserved and must be left alone
-where an out already carries one. Filtration (index 1) and hybrid chlorine (15) have no
-entry: their permitted lists were never supplied, and 0/1/3 and 2/3 have only been
-*observed*, which is not the same thing.
+Hybrid chlorine takes **one mode and no other**, Volume fixe, so its select offers a single
+option: it reports the mode and can only re-assert it. The switch over the same out is the
+real gain, that mode accepting 0, 1 and keep.
+
+**The filtration speed entity is writable too, in Manuel only.** `number.py` looks up the
+out's current mode and refuses with `out_speed_not_settable` unless `rule.speed` is set —
+not merely unless the value is permitted, since in Plages horaires the permitted 2 is the
+keep sentinel and Maintenance's 0/1 are off and on. Writing either from a speed control
+would send a number the controller reads as something else.
+
+The modes an out permits are the keys of its rules — `OUT_MODE_STATES`, the tables
+`PAYLOAD_VARIANTS` selects, or `filtration_mode_states()` — so the list and the states can
+never disagree: lighting and auxiliaries take 0/1/2/4/6/8, the filtration 0/1/3/6, the pH
+corrector 0/2/3, the flocculant 0/2, hybrid chlorine 2 alone, a dry-contact heater 0/3, a
+heat pump 0/1/2/3, a chlorine or oxygen disinfectant 0/2/3, a bromine one 0/2/3/4 and an
+electrolyser 0/2/3/4/5.
+
+The `(0, 3)` once recorded for the disinfectant was wrong in every direction, and it is
+gone: chlorine and oxygen take 0/2/3, bromine 0/2/3/4, an electrolyser 0/2/3/4/5. That
+list had also covered the pH corrector and the flocculant, which turned out to take
+`(0, 2, 3)` and `(0, 2)` — three outputs, three contradictions. Hybrid chlorine had 2/3
+*observed* on it and takes 2 alone. **No observed list ever matched the supplied one**,
+which is the standing reason not to infer a rule from a capture. Values outside a rule's
+list are reserved and must be left alone where an out already carries one.
 
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- An out's `mode` is readable (`Mode` and `ModeName` attributes) but nothing can change it
-  yet: there is no mode selector entity. `OUT_MODES` and `OUT_MODE_CHOICES` are the tables
-  such an entity would need.
+- A heating or disinfectant whose `params` key names no kind gets no `select` and no
+  write; its mode is visible as the switch's `Mode`/`ModeName` attributes only. No output
+  is unconditionally read-only any more.
+- `ModeName` reports a reserved mode's generic name where the out's rules are static — a
+  hybrid chlorine somehow sitting in mode 0 reads "Manuel", though only Volume fixe is
+  permitted there. The payload-driven outs return `None` instead, the table to read being
+  unknown. The `select` refuses the value either way, so this only affects the attribute.
+- A filtration never seen running since Home Assistant started, and with no restored
+  state, still turns on at speed 1. There is nowhere else to learn a speed from: a stopped
+  pump reports `status: 0` and the payload keeps no history.
 
 ### Shape of the `GetIndex.php` payload
 

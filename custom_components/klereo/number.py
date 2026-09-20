@@ -4,8 +4,10 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (DOMAIN, FILTRATION_OUT_INDEX, ICON_FILTRATION_SPEED,
-                    MAX_PUMP_SPEED, OUT_LABELS, WRITABLE_OUT_INDEXES)
-from .entity import IO_TYPE_OUT, klereo_device_info, klereo_io_names
+                    MAX_PUMP_SPEED, OUT_LABELS)
+from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
+                     klereo_out_mode_name, klereo_out_mode_states,
+                     klereo_pump_max_speed)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -24,14 +26,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                     poolid, FILTRATION_OUT_INDEX)
         return
 
-    max_speed = pool_data.get('PumpMaxSpeed')
-    if not isinstance(max_speed, int):
+    if not isinstance(pool_data.get('PumpMaxSpeed'), int):
         # Only a missing or malformed value is a reason to guess; 0 is a real
         # answer, meaning the pool drives no pump speed.
         LOGGER.warning("Pool #%s declares no usable PumpMaxSpeed (%r), allowing %s",
-                       poolid, max_speed, MAX_PUMP_SPEED)
-        max_speed = MAX_PUMP_SPEED
-    max_speed = min(max_speed, MAX_PUMP_SPEED)
+                       poolid, pool_data.get('PumpMaxSpeed'), MAX_PUMP_SPEED)
+    max_speed = klereo_pump_max_speed(pool_data)
     if max_speed < 2:
         # 0 = no speed control, 1 = single speed: the switch says it all.
         LOGGER.info("Pool #%s drives no pump speed (PumpMaxSpeed=%s), no speed entity",
@@ -90,21 +90,38 @@ class KlereoFiltrationSpeed(CoordinatorEntity, NumberEntity):
         return None
 
     async def async_set_native_value(self, value: float) -> None:
-        if FILTRATION_OUT_INDEX not in WRITABLE_OUT_INDEXES:
-            # The filtration is read-only for now, so this entity reports the
-            # speed but cannot set it.
+        pool_data = self.coordinator.data
+        states = klereo_out_mode_states(pool_data, FILTRATION_OUT_INDEX)
+        if states is None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="out_read_only",
                 translation_placeholders={"name": self._name},
             )
-        speed = int(value)
-        LOGGER.debug(f"Setting filtration speed of #{self._poolid} to {speed}")
         mode = None
-        for out in self.coordinator.data['outs']:
+        for out in pool_data['outs']:
             if out['index'] == FILTRATION_OUT_INDEX:
                 mode = out['mode']
                 break
+        speed = int(value)
+        rule = states.get(mode)
+        if rule is None or not rule.speed or speed not in rule.states:
+            # Only Manuel takes a speed index, which is why rule.speed decides
+            # rather than the states alone: in Plages horaires and Régulé the
+            # single permitted 2 is the keep sentinel, and Maintenance's 0 and
+            # 1 are off and on — writing either from a speed control would send
+            # a number the controller reads as something else entirely.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="out_speed_not_settable",
+                translation_placeholders={
+                    "name": self._name,
+                    "mode": klereo_out_mode_name(pool_data, FILTRATION_OUT_INDEX,
+                                                 mode) or str(mode),
+                },
+            )
+        LOGGER.debug("Setting filtration speed of #%s to %s (mode %s)",
+                     self._poolid, speed, mode)
         await self.hass.async_add_executor_job(
             self._api.set_out, FILTRATION_OUT_INDEX, speed, mode
         )
