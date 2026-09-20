@@ -115,8 +115,8 @@ credential disclosure, not just a connection failure.
   non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
 - `select.py` — one entity per writable out, its drive mode. Offered exactly where
-  `klereo_out_mode_states()` answers — so every out but hybrid chlorine has one. The
-  options are resolved **once, in `__init__`**: `HeaterMode`, `TraitMode` and
+  `klereo_out_mode_states()` answers — so every out has one, save a heating or
+  disinfectant whose kind the payload does not name. The options are resolved **once, in `__init__`**: `HeaterMode`, `TraitMode` and
   `PumpMaxSpeed` describe how the pool is equipped, which is a reinstallation rather than
   something that changes under a poll. The write sends
   `OUT_STATE_KEEP` as `newState` **wherever the target mode accepts it**, so changing the
@@ -299,13 +299,17 @@ water treatment. The accepted cost is that toggling a regulated output may appea
 nothing, the regulator still owning its state — so don't "fix" an inert switch on such an
 output by writing a mode.
 
-**Everything but hybrid chlorine (15) may now be written**: lighting (0), the filtration
-(1), the pH corrector (2), the flocculant (8), the auxiliaries (5-7, 9-14), and the heating
-(4) and disinfectant (3) when their `params` key names a kind. An output becomes writable
-exactly when its permitted states arrive, since the one resolver answers both questions.
-What remains read-only still reports state; a turn_on/turn_off on it raises
-`ServiceValidationError` with the `out_read_only` key, which lives in the `exceptions`
-section of `strings.json` and both translations.
+**Every output now carries its rules.** Lighting (0), the filtration (1), the pH corrector
+(2), the flocculant (8), hybrid chlorine (15) and the auxiliaries (5-7, 9-14) answer from
+their index; the heating (4) and the disinfectant (3) answer from the payload and stay
+read-only while their `params` key names no kind. So `out_read_only` is no longer a
+property of an output but of a pool that has not said what it is equipped with — it still
+lives in the `exceptions` section of `strings.json` and both translations, and an out that
+raises it still reports state.
+
+Hybrid chlorine takes **one mode and no other**, Volume fixe, so its select offers a single
+option: it reports the mode and can only re-assert it. The switch over the same out is the
+real gain, that mode accepting 0, 1 and keep.
 
 **The filtration speed entity is writable too, in Manuel only.** `number.py` looks up the
 out's current mode and refuses with `out_speed_not_settable` unless `rule.speed` is set —
@@ -316,24 +320,27 @@ would send a number the controller reads as something else.
 The modes an out permits are the keys of its rules — `OUT_MODE_STATES`, the tables
 `PAYLOAD_VARIANTS` selects, or `filtration_mode_states()` — so the list and the states can
 never disagree: lighting and auxiliaries take 0/1/2/4/6/8, the filtration 0/1/3/6, the pH
-corrector 0/2/3, the flocculant 0/2, a dry-contact heater 0/3, a heat pump 0/1/2/3, a
-chlorine or oxygen disinfectant 0/2/3, a bromine one 0/2/3/4 and an electrolyser
-0/2/3/4/5.
+corrector 0/2/3, the flocculant 0/2, hybrid chlorine 2 alone, a dry-contact heater 0/3, a
+heat pump 0/1/2/3, a chlorine or oxygen disinfectant 0/2/3, a bromine one 0/2/3/4 and an
+electrolyser 0/2/3/4/5.
 
 The `(0, 3)` once recorded for the disinfectant was wrong in every direction, and it is
 gone: chlorine and oxygen take 0/2/3, bromine 0/2/3/4, an electrolyser 0/2/3/4/5. That
 list had also covered the pH corrector and the flocculant, which turned out to take
-`(0, 2, 3)` and `(0, 2)` — three outputs, three contradictions. **Hybrid chlorine (15) is
-the last out with no rules**, and 2/3 has merely been *observed* on it, which is not the
-same thing. Values outside a rule's list are reserved and must be left alone where an out
-already carries one.
+`(0, 2, 3)` and `(0, 2)` — three outputs, three contradictions. Hybrid chlorine had 2/3
+*observed* on it and takes 2 alone. **No observed list ever matched the supplied one**,
+which is the standing reason not to infer a rule from a capture. Values outside a rule's
+list are reserved and must be left alone where an out already carries one.
 
 ## Known rough edges (pre-existing, don't assume they are intentional)
 
-- Nothing exposes an out's mode on hybrid chlorine, the last output with no rules at all:
-  it gets no `select` and no write. The mode is still visible as the switch's
-  `Mode`/`ModeName` attributes. A heating or disinfectant whose `params` key names no kind
-  reads the same way.
+- A heating or disinfectant whose `params` key names no kind gets no `select` and no
+  write; its mode is visible as the switch's `Mode`/`ModeName` attributes only. No output
+  is unconditionally read-only any more.
+- `ModeName` reports a reserved mode's generic name where the out's rules are static — a
+  hybrid chlorine somehow sitting in mode 0 reads "Manuel", though only Volume fixe is
+  permitted there. The payload-driven outs return `None` instead, the table to read being
+  unknown. The `select` refuses the value either way, so this only affects the attribute.
 - A filtration never seen running since Home Assistant started, and with no restored
   state, still turns on at speed 1. There is nowhere else to learn a speed from: a stopped
   pump reports `status: 0` and the payload keeps no history.

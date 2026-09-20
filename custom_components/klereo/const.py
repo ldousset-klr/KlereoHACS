@@ -178,8 +178,9 @@ OUT_MODES = {
 # "Volume fixe" where the switched outs call it "Minuterie".
 _MODE_NAMES_DOSING = {2: "Volume fixe"}
 OUT_MODE_NAME_OVERRIDES = {
-    2: _MODE_NAMES_DOSING,  # pH corrector
-    8: _MODE_NAMES_DOSING,  # flocculant
+    2: _MODE_NAMES_DOSING,   # pH corrector
+    8: _MODE_NAMES_DOSING,   # flocculant
+    15: _MODE_NAMES_DOSING,  # hybrid chlorine
 }
 
 # What newState may carry, per out index and per mode. The permitted lists come
@@ -227,6 +228,15 @@ _MODE_STATES_PH = {
 # directions, missing mode 2 and inventing mode 3.
 _MODE_STATES_FLOC = {
     0: _rule((OUT_STATUS_OFF,)),                    # Manuel — no keep
+    2: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Volume fixe
+}
+
+# Hybrid chlorine (15) takes **one mode and no other**: Volume fixe, which
+# doses on a timer exactly as it does on the pH corrector and the flocculant.
+# Its select therefore offers a single option — it reports the mode and can
+# only re-assert it — but the switch it shares the out with becomes writable,
+# which is the point.
+_MODE_STATES_HYBRID = {
     2: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Volume fixe
 }
 
@@ -390,12 +400,12 @@ OUT_MODE_STATES = {
     12: _MODE_STATES_SWITCHED,
     13: _MODE_STATES_SWITCHED,
     14: _MODE_STATES_SWITCHED,
+    15: _MODE_STATES_HYBRID,
 }
 
-# Hybrid chlorine (15) is the one out left with no rules at all. Modes 2 and 3
-# have been *observed* on it, which is not the same as being permitted, and
-# nothing reads that: it stays read-only until its permitted modes and states
-# are supplied, like every other output before it.
+# Every output now carries its rules. What a pool actually exposes still
+# depends on it: the heating and the disinfectant need their params key to name
+# a kind, and an out absent from the payload has no entities at all.
 
 # Icons, only where Home Assistant has no default of its own. Probe types that
 # carry a device_class (temperature, ph, pressure) are left alone: HA already

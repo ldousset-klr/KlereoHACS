@@ -26,8 +26,9 @@ One device per pool, named after its Klereo nickname, carrying:
   and *Manuel* and *Volume fixe* on the flocculant; *Manuel* and *Régulé* on a heater, or
   *Manuel*, *Auto*, *Refroidit* and *Réchauffe* when the heating output drives a Klereo
   heat pump; and on the disinfectant, whatever the pool is treated with — chlorine, bromine,
-  oxygen or an electrolyser each offer their own list. Changing the mode leaves the output
-  doing whatever it was doing — including the filtration, which keeps its speed — except
+  oxygen or an electrolyser each offer their own list. Hybrid chlorine accepts one mode
+  only, *Volume fixe*, so its selector shows a single option. Changing the mode leaves the
+  output doing whatever it was doing — including the filtration, which keeps its speed — except
   *Manuel* on the dosing pumps, the disinfectant and the heating, which stop them, the
   controller allowing nothing else there.
 - **Diagnostic sensors** for the registration PIN and the device slot on the pod.
@@ -63,10 +64,10 @@ whatever address it holds**.
 
 ## Current limitations
 
-- **Hybrid chlorine cannot be driven.** It reports its state but refuses to be written,
-  until the rules for it are settled. The heating and the disinfectant join it when the
-  controller does not say what the pool is equipped with — no heating or no treatment, or a
-  `HeaterMode` or `TraitMode` the integration does not recognise.
+- **The heating and the disinfectant cannot be driven when the controller does not say
+  what the pool is equipped with** — no heating or no treatment, or a `HeaterMode` or
+  `TraitMode` the integration does not recognise. They report their state and refuse to be
+  written. Every other output can be driven.
 - **Turning the filtration on from the switch resumes its last known speed** — the one it
   was last seen running at, visible as the switch's `LastSpeed` attribute and remembered
   across restarts. It falls back to speed 1 if the pump has not been seen running since
@@ -238,6 +239,9 @@ taking nothing but keep:
 | | | 5 Choc | 2 keep |
 
 `TraitMode` 0 and 7 mean no treatment the integration can drive.
+
+Hybrid chlorine accepts mode 2 (*Volume fixe*) and nothing else, with 0 off, 1 on and
+2 keep.
 
 The heating output, where `params.HeaterMode` decides which of the two applies:
 
