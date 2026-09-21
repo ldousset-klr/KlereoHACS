@@ -21,12 +21,15 @@ def klereo_device_info(pool_data, poolid) -> DeviceInfo:
     )
     # The firmware revision is tabSW, not PodSW: PodSW is the pod application
     # number (a plain integer), tabSW is the board software version ("212D").
-    tab_sw = pool_data.get("tabSW")
-    if tab_sw:
-        info["sw_version"] = str(tab_sw)
-    pod_serial = pool_data.get("podSerial")
-    if pod_serial:
-        info["serial_number"] = str(pod_serial)
+    # tabHW is the board's hardware revision, which DeviceInfo has its own
+    # field for — so it belongs here rather than among the diagnostic sensors
+    # the way the PIN and the water volume do.
+    for key, field in (("tabSW", "sw_version"),
+                       ("tabHW", "hw_version"),
+                       ("podSerial", "serial_number")):
+        value = pool_data.get(key)
+        if value:
+            info[field] = str(value)
     return info
 
 

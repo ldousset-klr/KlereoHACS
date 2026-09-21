@@ -75,12 +75,14 @@ credential disclosure, not just a connection failure.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
   pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
   Both platforms build it once in `async_setup_entry` and pass it to each entity. Optional
-  fields (`sw_version` from **`tabSW`**, the board software version like "212D" — *not*
-  `PodSW`, which is the pod application number — and `serial_number` from `podSerial`) are
-  only set when the payload carries them, so a missing one is absent rather than the
-  string `"None"`. `DeviceInfo` has no free-form field, so the pool's `register.pin`, its
-  `device` number and its `params.VolumeEau` water volume are published as **diagnostic
-  sensors** instead (`INFO_SENSORS` in `sensor.py`), which is how Home Assistant surfaces
+  fields are only set when the payload carries them, so a missing one is absent rather
+  than the string `"None"`: `sw_version` from **`tabSW`**, the board software version like
+  "212D" — *not* `PodSW`, which is the pod application number — `hw_version` from
+  **`tabHW`**, the board's hardware revision, and `serial_number` from `podSerial`. A
+  value belongs here rather than among the diagnostic sensors exactly when `DeviceInfo`
+  has a field for it. `DeviceInfo` has no free-form field, so the pool's `register.pin`, its
+  `device` number, its `params.VolumeEau` water volume and the four runtime counters are
+  published as **diagnostic sensors** instead (`INFO_SENSORS` in `sensor.py`), which is how Home Assistant surfaces
   extra device metadata on the device page. Each row is an
   `InfoSensor(key, label, getter, icon, unit, enabled, device_class, state_class)`,
   everything that varies living in the row rather than in subclasses. A row whose getter returns `None` creates no entity,
