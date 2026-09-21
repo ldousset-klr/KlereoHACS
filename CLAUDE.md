@@ -194,14 +194,19 @@ The rest of the code depends on these keys:
   `PressureMax` of 1100, so this is a hint, not an invariant. `params.HeaterMode` and
   `params.TraitMode` are read too, and decide what the heating and the disinfectant may be
   set to — see the writes section below. `params.VolumeEau`, the pool's water volume in
-  m³, and `params.Filtration_TotalTime`, the pump's cumulative running time, are read as
-  well and published as diagnostic sensors; both are **read-only**, having no `SetOut`
-  equivalent and describing how the pool is built or what it has done rather than anything
-  Home Assistant may command. The runtime counter is **in seconds** and is published in
-  hours by `_params_hours()` — a pool running since spring reports a number like 3283200,
-  which nobody reads — with `device_class` `duration` and `state_class`
-  `total_increasing`, that class absorbing a counter reset without charting a negative
-  spike. It is how `PROBE_TYPES` was
+  m³, and the four `_TotalTime` counters are read as well and published as diagnostic
+  sensors; all are **read-only**, having no `SetOut` equivalent and describing how the pool
+  is built or what it has done rather than anything Home Assistant may command. The
+  counters are **in seconds** and are published in hours by `_params_hours()` — a pool
+  running since spring reports a number like 3283200, which nobody reads — with
+  `device_class` `duration` and `state_class` `total_increasing`, that class absorbing a
+  counter reset without charting a negative spike. `_runtime()` builds the four rows:
+  `Filtration_TotalTime`, `PHMinus_TotalTime`, `ElectroChlore_TotalTime` and
+  `Chauff_TotalTime`, tracking outs 1 to 4. **The labels follow the output's role, not the
+  key's wording** — `ElectroChlore_` counts out 3 whatever the pool is treated with, so
+  naming that sensor after electro-chlorination would be wrong on a bromine or oxygen
+  pool. A key spelled differently on some firmware costs nothing: the getter returns
+  `None` and no entity is created. It is how `PROBE_TYPES` was
   first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
   its pressure probe correctly — so trust `probes[].type`, not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/

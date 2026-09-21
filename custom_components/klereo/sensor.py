@@ -51,6 +51,20 @@ def _params_hours(key):
     return getter
 
 
+def _runtime(key, label, params_key):
+    """A cumulative running-time counter, seconds in the payload, hours here.
+
+    total_increasing rather than total: the controller only ever counts up,
+    and that class also absorbs a reset — a pod swap, a counter cleared on the
+    front panel — without charting a negative spike. No icon, the device_class
+    supplying a better one. Enabled, unlike the water volume: these move, and
+    their history is the point.
+    """
+    return InfoSensor(key, label, _params_hours(params_key),
+                      icon=None, unit="h", device_class="duration",
+                      state_class="total_increasing")
+
+
 INFO_SENSORS = (
     InfoSensor("pin", "PIN",
                lambda data: (data.get("register") or {}).get("pin")),
@@ -61,15 +75,21 @@ INFO_SENSORS = (
     InfoSensor("volume", "Water volume",
                lambda data: (data.get("params") or {}).get("VolumeEau"),
                icon=ICON_WATER_VOLUME, unit="m³", enabled=False),
-    # Total filtration running time. total_increasing rather than total: the
-    # controller only ever counts up, and that class also absorbs a reset —
-    # a pod swap or a counter cleared on the front panel — without charting a
-    # negative spike. Enabled, unlike the volume: this one moves, and its
-    # history is the point.
-    InfoSensor("filtrationtime", "Filtration runtime",
-               _params_hours("Filtration_TotalTime"),
-               icon=None, unit="h",
-               device_class="duration", state_class="total_increasing"),
+
+    # One counter per driven output, the four whose totalTime the captured
+    # payloads showed these params keys tracking: outs 1, 2, 3 and 4.
+    #
+    # The labels follow the output's role rather than the key's wording.
+    # ElectroChlore_ in particular counts out 3 whatever the pool is treated
+    # with — chlorine, bromine, oxygen or an electrolyser — so naming the
+    # sensor after electro-chlorination would be wrong on most pools.
+    #
+    # A key that turns out to be spelled differently on some firmware costs
+    # nothing: the getter returns None and no entity is created.
+    _runtime("filtrationtime", "Filtration runtime", "Filtration_TotalTime"),
+    _runtime("phtime", "pH corrector runtime", "PHMinus_TotalTime"),
+    _runtime("disinfectanttime", "Disinfectant runtime", "ElectroChlore_TotalTime"),
+    _runtime("heatingtime", "Heating runtime", "Chauff_TotalTime"),
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
