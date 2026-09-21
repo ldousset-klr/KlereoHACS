@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -14,17 +16,28 @@ LOGGER = logging.getLogger(__name__)
 # They are published as diagnostic sensors, which is how Home Assistant
 # surfaces extra device metadata on the device page.
 #
-# (key, label, getter, icon, unit). All are read-only: they describe how the
-# pool is registered and built, not anything Home Assistant may command, and
-# none of them has a SetOut equivalent.
+# All are read-only: they describe how the pool is registered and built, not
+# anything Home Assistant may command, and none has a SetOut equivalent.
+#
+# `enabled` is the entity registry's enabled-by-default flag. False still
+# creates the entity, so it is one click away on the device page, but it
+# records no history until someone asks for it. Note this only applies when an
+# entity is first registered: flipping it later leaves existing installs alone.
+InfoSensor = namedtuple(
+    "InfoSensor", ("key", "label", "getter", "icon", "unit", "enabled")
+)
+InfoSensor.__new__.__defaults__ = (ICON_INFO, None, True)
+
 INFO_SENSORS = (
-    ("pin", "PIN",
-     lambda data: (data.get("register") or {}).get("pin"), ICON_INFO, None),
-    ("device", "Device",
-     lambda data: data.get("device"), ICON_INFO, None),
-    ("volume", "Water volume",
-     lambda data: (data.get("params") or {}).get("VolumeEau"),
-     ICON_WATER_VOLUME, "m³"),
+    InfoSensor("pin", "PIN",
+               lambda data: (data.get("register") or {}).get("pin")),
+    InfoSensor("device", "Device",
+               lambda data: data.get("device")),
+    # A pool's volume is a fixed property of the installation: useful to have
+    # to hand, not worth a recorder row every poll, so it ships disabled.
+    InfoSensor("volume", "Water volume",
+               lambda data: (data.get("params") or {}).get("VolumeEau"),
+               icon=ICON_WATER_VOLUME, unit="m³", enabled=False),
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -44,12 +57,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         sensors.append(KlereoSensor(coordinator,probe,poolid,device_info,
                                     names.get(probe['index'])))
     # Identity values, only when the payload carries them
-    for key, label, getter, icon, unit in INFO_SENSORS:
-        if getter(pool_data) is None:
-            LOGGER.debug(f"No {key} on pool #{poolid}, no diagnostic sensor")
+    for info in INFO_SENSORS:
+        if info.getter(pool_data) is None:
+            LOGGER.debug("No %s on pool #%s, no diagnostic sensor",
+                         info.key, poolid)
             continue
-        sensors.append(KlereoInfoSensor(coordinator, poolid, device_info,
-                                        key, label, getter, icon, unit))
+        sensors.append(KlereoInfoSensor(coordinator, poolid, device_info, info))
     #add sensor enitities
     async_add_entities(sensors)
 
@@ -139,23 +152,25 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
 class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
     """A read-only piece of the pool's identity or setup, under Diagnostic.
 
-    No device_class on any of these, so the icon the table gives is the one
-    Home Assistant shows — the same rule KlereoSensor follows. The water
-    volume carries a unit where the identity values do not.
+    Everything that varies between them lives in the InfoSensor row rather
+    than in subclasses: label, getter, icon, unit and whether the entity is
+    enabled when first registered. No row carries a device_class, so the
+    table's icon is the one Home Assistant shows — the rule KlereoSensor
+    already follows.
     """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator, poolid, device_info, key, label, getter,
-                 icon=ICON_INFO, unit=None):
+    def __init__(self, coordinator, poolid, device_info, info):
         super().__init__(coordinator)
         self._attr_device_info = device_info
         # Same rule as everywhere else: unique_id follows the key, not the name.
-        self._key = f"klereo{poolid}{key}"
-        self._name = label
-        self._getter = getter
-        self._attr_icon = icon
-        self._attr_native_unit_of_measurement = unit
+        self._key = f"klereo{poolid}{info.key}"
+        self._name = info.label
+        self._getter = info.getter
+        self._attr_icon = info.icon
+        self._attr_native_unit_of_measurement = info.unit
+        self._attr_entity_registry_enabled_default = info.enabled
 
     @property
     def name(self):

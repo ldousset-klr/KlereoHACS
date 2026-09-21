@@ -81,11 +81,16 @@ credential disclosure, not just a connection failure.
   string `"None"`. `DeviceInfo` has no free-form field, so the pool's `register.pin`, its
   `device` number and its `params.VolumeEau` water volume are published as **diagnostic
   sensors** instead (`INFO_SENSORS` in `sensor.py`), which is how Home Assistant surfaces
-  extra device metadata on the device page. Each row is
-  `(key, label, getter, icon, unit)`; a row whose getter returns `None` creates no entity,
+  extra device metadata on the device page. Each row is an
+  `InfoSensor(key, label, getter, icon, unit, enabled)`, everything that varies living in
+  the row rather than in subclasses. A row whose getter returns `None` creates no entity,
   so a missing value is absent rather than shown as `"None"` — but `0` is a real answer
   and does create one. None carries a `device_class`, so the table's icon is the one shown,
-  the same rule `KlereoSensor` follows. `device` is the slot on the physical pod: the two systems sharing a `podSerial`
+  the same rule `KlereoSensor` follows. `enabled=False` — the water volume — still
+  registers the entity, one click away on the device page, but keeps it out of the
+  recorder until asked for; a fixed property of the installation does not deserve a row
+  every poll. **That flag is read only when an entity is first registered**, so changing it
+  later leaves existing installs as they are. `device` is the slot on the physical pod: the two systems sharing a `podSerial`
   and a `pin` are device 0 and device 1.
   **The device is keyed on the poolID, and must stay that way**: one physical pod can serve
   several systems — two captured pools share a `podSerial` and a `register.pin` — so keying
