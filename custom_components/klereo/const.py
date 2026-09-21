@@ -447,3 +447,4 @@ OUT_ICONS = {
 ICON_FILTRATION_SPEED = "mdi:speedometer"
 ICON_OUT_MODE = "mdi:tune"
 ICON_INFO = "mdi:identifier"
+ICON_WATER_VOLUME = "mdi:pool"

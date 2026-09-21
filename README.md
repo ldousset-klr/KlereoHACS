@@ -31,7 +31,8 @@ One device per pool, named after its Klereo nickname, carrying:
   output doing whatever it was doing — including the filtration, which keeps its speed — except
   *Manuel* on the dosing pumps, the disinfectant and the heating, which stop them, the
   controller allowing nothing else there.
-- **Diagnostic sensors** for the registration PIN and the device slot on the pod.
+- **Diagnostic sensors** for the registration PIN, the device slot on the pod and the
+  pool's water volume in m³. All three are read-only.
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
 back to the controller's own name for that slot — *Température eau*, *Capteur pH*,

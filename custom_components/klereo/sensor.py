@@ -2,19 +2,29 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (DOMAIN, ICON_INFO, PROBE_ICONS, PROBE_INVALID, PROBE_LABELS,
-                    PROBE_TYPES, PROBE_TYPE_DEFAULT)
+from .const import (DOMAIN, ICON_INFO, ICON_WATER_VOLUME, PROBE_ICONS,
+                    PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
+                    PROBE_TYPE_DEFAULT)
 from .entity import IO_TYPE_PROBE, klereo_device_info, klereo_io_names
 
 import logging
 LOGGER = logging.getLogger(__name__)
 
-# Pieces of the pool's identity that DeviceInfo has no field for. They are
-# published as diagnostic sensors, which is how Home Assistant surfaces extra
-# device metadata on the device page.
+# Pieces of the pool's identity and setup that DeviceInfo has no field for.
+# They are published as diagnostic sensors, which is how Home Assistant
+# surfaces extra device metadata on the device page.
+#
+# (key, label, getter, icon, unit). All are read-only: they describe how the
+# pool is registered and built, not anything Home Assistant may command, and
+# none of them has a SetOut equivalent.
 INFO_SENSORS = (
-    ("pin", "PIN", lambda data: (data.get("register") or {}).get("pin")),
-    ("device", "Device", lambda data: data.get("device")),
+    ("pin", "PIN",
+     lambda data: (data.get("register") or {}).get("pin"), ICON_INFO, None),
+    ("device", "Device",
+     lambda data: data.get("device"), ICON_INFO, None),
+    ("volume", "Water volume",
+     lambda data: (data.get("params") or {}).get("VolumeEau"),
+     ICON_WATER_VOLUME, "m³"),
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -34,12 +44,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         sensors.append(KlereoSensor(coordinator,probe,poolid,device_info,
                                     names.get(probe['index'])))
     # Identity values, only when the payload carries them
-    for key, label, getter in INFO_SENSORS:
+    for key, label, getter, icon, unit in INFO_SENSORS:
         if getter(pool_data) is None:
             LOGGER.debug(f"No {key} on pool #{poolid}, no diagnostic sensor")
             continue
         sensors.append(KlereoInfoSensor(coordinator, poolid, device_info,
-                                        key, label, getter))
+                                        key, label, getter, icon, unit))
     #add sensor enitities
     async_add_entities(sensors)
 
@@ -127,18 +137,25 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
 
 
 class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
-    """A read-only piece of the pool's identity, shown under Diagnostic."""
+    """A read-only piece of the pool's identity or setup, under Diagnostic.
+
+    No device_class on any of these, so the icon the table gives is the one
+    Home Assistant shows — the same rule KlereoSensor follows. The water
+    volume carries a unit where the identity values do not.
+    """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_icon = ICON_INFO
 
-    def __init__(self, coordinator, poolid, device_info, key, label, getter):
+    def __init__(self, coordinator, poolid, device_info, key, label, getter,
+                 icon=ICON_INFO, unit=None):
         super().__init__(coordinator)
         self._attr_device_info = device_info
         # Same rule as everywhere else: unique_id follows the key, not the name.
         self._key = f"klereo{poolid}{key}"
         self._name = label
         self._getter = getter
+        self._attr_icon = icon
+        self._attr_native_unit_of_measurement = unit
 
     @property
     def name(self):

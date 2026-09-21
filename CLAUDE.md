@@ -78,10 +78,14 @@ credential disclosure, not just a connection failure.
   fields (`sw_version` from **`tabSW`**, the board software version like "212D" — *not*
   `PodSW`, which is the pod application number — and `serial_number` from `podSerial`) are
   only set when the payload carries them, so a missing one is absent rather than the
-  string `"None"`. `DeviceInfo` has no free-form field, so the pool's `register.pin` and
-  its `device` number are published as **diagnostic sensors** instead (`INFO_SENSORS` in
-  `sensor.py`), which is how Home Assistant surfaces extra device metadata on the device
-  page. `device` is the slot on the physical pod: the two systems sharing a `podSerial`
+  string `"None"`. `DeviceInfo` has no free-form field, so the pool's `register.pin`, its
+  `device` number and its `params.VolumeEau` water volume are published as **diagnostic
+  sensors** instead (`INFO_SENSORS` in `sensor.py`), which is how Home Assistant surfaces
+  extra device metadata on the device page. Each row is
+  `(key, label, getter, icon, unit)`; a row whose getter returns `None` creates no entity,
+  so a missing value is absent rather than shown as `"None"` — but `0` is a real answer
+  and does create one. None carries a `device_class`, so the table's icon is the one shown,
+  the same rule `KlereoSensor` follows. `device` is the slot on the physical pod: the two systems sharing a `podSerial`
   and a `pin` are device 0 and device 1.
   **The device is keyed on the poolID, and must stay that way**: one physical pod can serve
   several systems — two captured pools share a `podSerial` and a `register.pin` — so keying
@@ -183,7 +187,10 @@ The rest of the code depends on these keys:
   `PressureMin/Max`) — **usually**: one pool's pressure probe bounds 200..2400 against a
   `PressureMax` of 1100, so this is a hint, not an invariant. `params.HeaterMode` and
   `params.TraitMode` are read too, and decide what the heating and the disinfectant may be
-  set to — see the writes section below. It is how `PROBE_TYPES` was
+  set to — see the writes section below. `params.VolumeEau`, the pool's water volume in
+  m³, is read as well and published as a diagnostic sensor; it is **read-only**, having no
+  `SetOut` equivalent and describing how the pool is built rather than anything Home
+  Assistant may command. It is how `PROBE_TYPES` was
   first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
   its pressure probe correctly — so trust `probes[].type`, not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
