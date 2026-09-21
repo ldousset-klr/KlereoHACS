@@ -24,9 +24,32 @@ LOGGER = logging.getLogger(__name__)
 # records no history until someone asks for it. Note this only applies when an
 # entity is first registered: flipping it later leaves existing installs alone.
 InfoSensor = namedtuple(
-    "InfoSensor", ("key", "label", "getter", "icon", "unit", "enabled")
+    "InfoSensor",
+    ("key", "label", "getter", "icon", "unit", "enabled",
+     "device_class", "state_class"),
 )
-InfoSensor.__new__.__defaults__ = (ICON_INFO, None, True)
+InfoSensor.__new__.__defaults__ = (ICON_INFO, None, True, None, None)
+
+
+def _params_hours(key):
+    """Read a params counter given in seconds and publish it in hours.
+
+    The controller counts seconds, which no one reads: a pool that has run
+    since spring reports something like 3283200. Hours are what a pool owner
+    actually thinks in, and what a graph of running time should be drawn
+    against, so the conversion happens here rather than being left to a
+    template in every dashboard.
+
+    A missing or non-numeric counter yields None, which creates no entity at
+    all — the same rule the other rows follow.
+    """
+    def getter(data):
+        seconds = (data.get("params") or {}).get(key)
+        if not isinstance(seconds, (int, float)) or isinstance(seconds, bool):
+            return None
+        return round(seconds / 3600, 1)
+    return getter
+
 
 INFO_SENSORS = (
     InfoSensor("pin", "PIN",
@@ -38,6 +61,15 @@ INFO_SENSORS = (
     InfoSensor("volume", "Water volume",
                lambda data: (data.get("params") or {}).get("VolumeEau"),
                icon=ICON_WATER_VOLUME, unit="m³", enabled=False),
+    # Total filtration running time. total_increasing rather than total: the
+    # controller only ever counts up, and that class also absorbs a reset —
+    # a pod swap or a counter cleared on the front panel — without charting a
+    # negative spike. Enabled, unlike the volume: this one moves, and its
+    # history is the point.
+    InfoSensor("filtrationtime", "Filtration runtime",
+               _params_hours("Filtration_TotalTime"),
+               icon=None, unit="h",
+               device_class="duration", state_class="total_increasing"),
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -153,10 +185,8 @@ class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
     """A read-only piece of the pool's identity or setup, under Diagnostic.
 
     Everything that varies between them lives in the InfoSensor row rather
-    than in subclasses: label, getter, icon, unit and whether the entity is
-    enabled when first registered. No row carries a device_class, so the
-    table's icon is the one Home Assistant shows — the rule KlereoSensor
-    already follows.
+    than in subclasses: label, getter, icon, unit, device and state class, and
+    whether the entity is enabled when first registered.
     """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -168,8 +198,14 @@ class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
         self._key = f"klereo{poolid}{info.key}"
         self._name = info.label
         self._getter = info.getter
-        self._attr_icon = info.icon
+        self._attr_device_class = info.device_class
+        # Only where there is no device_class: HA's own icon is better
+        # informed, and overriding it loses the state-aware variants. Same
+        # rule as KlereoSensor.
+        if info.device_class is None:
+            self._attr_icon = info.icon
         self._attr_native_unit_of_measurement = info.unit
+        self._attr_state_class = info.state_class
         self._attr_entity_registry_enabled_default = info.enabled
 
     @property

@@ -82,11 +82,12 @@ credential disclosure, not just a connection failure.
   `device` number and its `params.VolumeEau` water volume are published as **diagnostic
   sensors** instead (`INFO_SENSORS` in `sensor.py`), which is how Home Assistant surfaces
   extra device metadata on the device page. Each row is an
-  `InfoSensor(key, label, getter, icon, unit, enabled)`, everything that varies living in
-  the row rather than in subclasses. A row whose getter returns `None` creates no entity,
+  `InfoSensor(key, label, getter, icon, unit, enabled, device_class, state_class)`,
+  everything that varies living in the row rather than in subclasses. A row whose getter returns `None` creates no entity,
   so a missing value is absent rather than shown as `"None"` — but `0` is a real answer
-  and does create one. None carries a `device_class`, so the table's icon is the one shown,
-  the same rule `KlereoSensor` follows. `enabled=False` — the water volume — still
+  and does create one. A row's icon is applied **only where it carries no
+  `device_class`**, the same rule `KlereoSensor` follows — the filtration runtime has one
+  and so takes Home Assistant's. `enabled=False` — the water volume — still
   registers the entity, one click away on the device page, but keeps it out of the
   recorder until asked for; a fixed property of the installation does not deserve a row
   every poll. **That flag is read only when an entity is first registered**, so changing it
@@ -193,9 +194,14 @@ The rest of the code depends on these keys:
   `PressureMax` of 1100, so this is a hint, not an invariant. `params.HeaterMode` and
   `params.TraitMode` are read too, and decide what the heating and the disinfectant may be
   set to — see the writes section below. `params.VolumeEau`, the pool's water volume in
-  m³, is read as well and published as a diagnostic sensor; it is **read-only**, having no
-  `SetOut` equivalent and describing how the pool is built rather than anything Home
-  Assistant may command. It is how `PROBE_TYPES` was
+  m³, and `params.Filtration_TotalTime`, the pump's cumulative running time, are read as
+  well and published as diagnostic sensors; both are **read-only**, having no `SetOut`
+  equivalent and describing how the pool is built or what it has done rather than anything
+  Home Assistant may command. The runtime counter is **in seconds** and is published in
+  hours by `_params_hours()` — a pool running since spring reports a number like 3283200,
+  which nobody reads — with `device_class` `duration` and `state_class`
+  `total_increasing`, that class absorbing a counter reset without charting a negative
+  spike. It is how `PROBE_TYPES` was
   first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
   its pressure probe correctly — so trust `probes[].type`, not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
