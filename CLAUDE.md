@@ -259,7 +259,41 @@ The rest of the code depends on these keys:
   `Chauff_TotalTime`, tracking outs 1 to 4. **The labels follow the output's role, not the
   key's wording** — `ElectroChlore_` counts out 3 whatever the pool is treated with, so
   naming that sensor after electro-chlorination would be wrong on a bromine or oxygen
-  pool. A key spelled differently on some firmware costs nothing: the getter returns
+  pool.
+  Each of the **four dosing outs** is also published as the **volume it dosed**.
+  `params.PHMinus_Debit` and `params.Chlore_Debit` give the pumps' flow rates in **tenths
+  of a litre per hour**, so a 1.5 L/h peristaltic pump reports 15, and `_params_ml()`
+  multiplies flow by running time — `mL = seconds x flow x ML_PER_FLOW_UNIT /
+  SECONDS_PER_HOUR`. Hours of pump time are a proxy nobody can act on, two pools with the
+  same hours and different pumps having dosed different amounts. The counters above
+  **stay** alongside, being the raw figure and already carrying history.
+
+  **There is one flow per pump, not per output**: `PHMinus_Debit` drives the pH corrector
+  and `Chlore_Debit` the other three — the disinfectant, the flocculant and hybrid
+  chlorine all meter from it. **The running times, though, live in three different
+  places**, which is why a volume row takes a *source* rather than a `params` key:
+  `_seconds_param()` for the pH corrector and the disinfectant, `_seconds_out()` for the
+  flocculant, whose only counter is `outs[8].totalTime`, and `_seconds_extra()` for hybrid
+  chlorine, whose counter is `ExtraParams.HybChl_TotalTime`. The out's key is
+  `totalTime`, **lowercase t** — what every capture shows, and confirmed by the codeowner;
+  read under the wrong spelling the row would produce no sensor and say nothing about why,
+  which is what `OUT_TOTAL_TIME_KEY` exists to pin.
+
+  **The disinfectant alone carries a gate.** Out 3 drives a dosing pump only where
+  `params.TraitMode` is in `PUMP_DOSED_TREATMENTS` — chlorine and oxygen. Bromine feeds a
+  brominator and an electrolyser runs a cell, so there the counter is running time and
+  nothing else, and the hours sensor remains the whole answer; multiplying it by a pump
+  flow would state a volume of product that never went in. `TRAIT_NONE`, `TRAIT_IGNORE`, a
+  reserved value and a missing `TraitMode` read the same way, the kind not being
+  established — the same rule the mode tables follow. **The gate is on that row only**: a
+  bromine pool still gets its flocculant and hybrid chlorine volumes, those being their
+  own pumps.
+
+  A **flow of zero or less creates no entity**, which is the normal case rather than a
+  defensive check — a controller that declares no pump has nothing to multiply, and a
+  volume pinned at 0 mL forever would be noise. A counter of zero *is* a real answer and
+  does create one. The value is rounded to whole millilitres, sub-millilitre precision
+  being accuracy a peristaltic pump does not have. A key spelled differently on some firmware costs nothing: the getter returns
   `None` and no entity is created. It is how `PROBE_TYPES` was
   first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
