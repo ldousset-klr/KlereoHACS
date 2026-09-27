@@ -286,8 +286,16 @@ executor thread here for the duration. Polling `CommandStatus` on `COMMAND_POLL_
 (1, 2, 3, 5, 5, 5, 5 — seven requests over 26 s) costs the server seven short queries
 instead, and sleeping between them frees the thread.
 
-`KlereoCommandMixin` in `entity.py` follows every write. **The wait never blocks the
-service call** — 26 s on a switch press would be unusable — so it runs as a background
+`KlereoCommandMixin` in `entity.py` follows every write, as a task the **config entry**
+owns — `entry.async_create_background_task()`, which cancels on unload. `hass` owning it
+instead left a reload or a shutdown mid-confirmation free to write state onto an entity
+that no longer existed, and to refresh a coordinator whose api had been dropped from
+`hass.data`. **One confirmation per entity**, too: a second write cancels the first,
+whose verdict concerns a value nobody is showing any more and whose `_clear_optimistic()`
+would wipe the one the new write just set — two quick presses on a switch did exactly
+that. `async_will_remove_from_hass()` cancels as well, for an entity that goes on its own.
+
+**The wait never blocks the service call** — 26 s on a switch press would be unusable — so it runs as a background
 task while the entity returns at once. That also removed the optimistic value's flicker:
 a write no longer refreshes immediately, which used to replace the optimistic value with a
 payload the pod had not updated yet. It refreshes once the command has landed. On a

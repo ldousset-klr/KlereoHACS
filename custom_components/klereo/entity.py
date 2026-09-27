@@ -192,11 +192,18 @@ class KlereoCommandMixin:
     this polls it on COMMAND_POLL_DELAYS until the pod answers or the last
     delay runs out — as a background task, so no service call waits on it.
 
+    That task is tied to the config entry and cancelled when it unloads, and a
+    second write on the same entity cancels the first: a stale verdict must not
+    outlive the value it was about.
+
     That also fixes the flicker the optimistic value used to have. The write
     no longer refreshes immediately, which would have replaced the optimistic
     value with a payload the pod had not updated yet; it refreshes once the
     command has landed, so the reading that arrives is the new one.
     """
+
+    # The confirmation in flight, if any. One per entity: see _follow_command.
+    _confirm_task = None
 
     def _clear_optimistic(self):
         """Drop whatever this entity is showing ahead of the payload."""
@@ -204,7 +211,39 @@ class KlereoCommandMixin:
 
     def _follow_command(self, reply, what):
         """Start the confirmation and return. Never awaited by a service call."""
-        self.hass.async_create_task(self._confirm_command(reply, what))
+        # A second write supersedes the first, whose verdict is about a value
+        # nobody is showing any more — and whose _clear_optimistic() would
+        # wipe the one the new write just set. Press a switch twice quickly
+        # and that is exactly what used to happen.
+        self._cancel_confirmation()
+
+        coro = self._confirm_command(reply, what)
+        entry = getattr(self.coordinator, "config_entry", None)
+        if entry is None:
+            # The coordinator is always built with one, so this is a guard
+            # rather than a path: without an entry there is nothing to tie to.
+            self._confirm_task = self.hass.async_create_task(coro)
+            return
+        # Tied to the config entry, which cancels its background tasks when it
+        # unloads. Otherwise a reload or a shutdown mid-confirmation leaves the
+        # task to write state onto an entity that no longer exists, and to
+        # refresh a coordinator whose api has been dropped from hass.data.
+        self._confirm_task = entry.async_create_background_task(
+            self.hass, coro, f"{DOMAIN} confirm: {what}"
+        )
+
+    def _cancel_confirmation(self):
+        """Drop the confirmation in flight, if there is one."""
+        task = self._confirm_task
+        self._confirm_task = None
+        if task is not None and not task.done():
+            task.cancel()
+
+    async def async_will_remove_from_hass(self):
+        # Belt and braces: the entry cancels its own tasks, but an entity can
+        # also go on its own — a pool that stops reporting an out, say.
+        self._cancel_confirmation()
+        await super().async_will_remove_from_hass()
 
     async def _confirm_command(self, reply, what):
         cmd_id = KlereoAPI.command_id(reply)
@@ -240,6 +279,7 @@ class KlereoCommandMixin:
             if status >= COMMAND_DONE:
                 break
 
+        self._confirm_task = None
         if status == COMMAND_DONE:
             LOGGER.debug("%s: command %s applied", what, cmd_id)
         else:
