@@ -7,22 +7,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A Home Assistant custom integration (distributed via HACS) for Klereo swimming pool
 controllers. The component lives in `custom_components/klereo/` and is copied as-is to
 the same path under the Home Assistant host's `config/`. The root holds `README.md`,
-`hacs.json` (HACS reads it there, never inside the component), `LICENSE` and
-`.github/workflows/`. There is no
-build system, no test suite, and no lint/CI configuration.
+`hacs.json` (HACS reads it there, never inside the component), `LICENSE`,
+`.github/workflows/`, `pytest.ini` and `tests/`. There is no build system and no
+linter; `tests/` holds a pytest suite that runs against a stub Home Assistant, and
+`.github/workflows/validate.yml` runs it.
 
 All source paths below are relative to `custom_components/klereo/`.
 
 ## Testing changes
 
-There is no local test harness. The only way to exercise the code is to copy
-`custom_components/klereo/` into a running Home Assistant's `config/custom_components/`,
-restart HA, add the integration via the UI config flow (username / password / poolID),
-and read the logs. Everything logs through `logging.getLogger(__name__)` at INFO/DEBUG, so raise the
+`python -m pytest` from the root runs the suite in `tests/`. It needs **pytest and
+nothing else** — no Home Assistant, no `requests`, no network. `tests/klereo_stub.py`
+installs fake `homeassistant.*` modules into `sys.modules`, and `tests/conftest.py`
+imports it before anything else so the component's own imports resolve against the stub.
+The stub also carries the fakes the suites drive the code with: `Api` (records every
+call and can be told what `command_status` should answer), `Coordinator`, `Hass` (whose
+`keep_tasks`/`run_tasks` let a test step through a background confirmation) and
+`FakeEntry`. `conftest.py` additionally patches `asyncio.sleep` to a no-op, so the seven
+`COMMAND_POLL_DELAYS` waits cost nothing.
+
+Assertions go through the `check` fixture rather than bare `assert`: it records every
+failure and reports them together at the end of the test, so one run tells you all of
+what broke instead of only the first. A suite is one test function taking `check` and
+ending on `check.assert_ok()`. `tests/README.md` lists what each suite covers.
+
+The suites were written against the tables and resolvers, not against captures, and that
+is deliberate: **no observed mode list ever matched the one the codeowner supplied**, so
+a test asserting what a pool was seen doing would pin the wrong rule. They assert the
+firmware's rules, the payload-driven variants, the refusals and the optimistic/confirm
+dance. When a rule legitimately changes, the failing suite is the record of the old one —
+update it and say so, rather than reading it as a regression.
+
+What the suite does **not** do is exercise Home Assistant itself — entity registration,
+the config flow's UI, the coordinator's real scheduling and every HTTP call are stubbed
+out. For those, and before any release, still copy `custom_components/klereo/` into a
+running Home Assistant's `config/custom_components/`, restart HA, add the integration via
+the UI config flow (username / password / poolID), and read the logs. Everything logs through `logging.getLogger(__name__)` at INFO/DEBUG, so raise the
 `custom_components.klereo` logger to `debug` in `configuration.yaml` when debugging.
 
-`.github/workflows/validate.yml` runs **hassfest** and the **HACS action** on every push
-to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
+`.github/workflows/validate.yml` runs **pytest** (on Python 3.12 and 3.13),
+**hassfest** and the **HACS action** on every push to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
 `domain`, `name`, then alphabetical, and an integration defining `async_setup` must also
 define a `CONFIG_SCHEMA` — this one has neither, being config-entry only, and declares
 `cv.config_entry_only_config_schema(DOMAIN)`. The HACS action additionally requires the

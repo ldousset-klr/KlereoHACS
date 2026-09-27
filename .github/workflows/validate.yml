@@ -11,6 +11,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  tests:
+    name: tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.12 is what Home Assistant 2024.11 — the minimum hacs.json declares —
+        # runs on; 3.13 is what current releases run on.
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install pytest
+      # The suites stub Home Assistant out (tests/klereo_stub.py), so nothing
+      # here installs homeassistant or requests.
+      - run: python -m pytest
+
   hassfest:
     name: hassfest
     runs-on: ubuntu-latest

@@ -316,6 +316,24 @@ directions, so treat it as unconfirmed.
 A write is not reflected in `GetPoolDetails.php` until the controller has polled, so expect
 a lag of seconds before a read confirms it.
 
+## Development
+
+The repository carries a pytest suite under [`tests/`](tests/). It runs the component
+against a stub Home Assistant, so it needs **pytest and nothing else** — no Home
+Assistant install, no network, no pool:
+
+```bash
+pip install pytest
+python -m pytest
+```
+
+[`tests/README.md`](tests/README.md) says what each suite covers. GitHub Actions runs it
+on Python 3.12 and 3.13 alongside hassfest and the HACS validator, on every push and
+pull request.
+
+It stubs Home Assistant out, so it cannot catch a break in entity registration, the
+config flow's UI or the real HTTP calls. Those still want a real install.
+
 ## Todo
 
 - Expose more pool information
