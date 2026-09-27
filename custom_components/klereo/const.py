@@ -407,10 +407,19 @@ OUT_MODE_STATES = {
 # depends on it: the heating and the disinfectant need their params key to name
 # a kind, and an out absent from the payload has no entities at all.
 
-# Outs whose controls ship disabled in the entity registry: the four that dose
-# the water — pH corrector (2), disinfectant (3), flocculant (8) and hybrid
-# chlorine (15). They still appear under "Disabled entities" on the device
-# page and are one click from being enabled.
+# The four outs that dose the water: pH corrector (2), disinfectant (3),
+# flocculant (8) and hybrid chlorine (15).
+#
+# Klereo privileges exactly these: SetOut refuses them below access level 16
+# while allowing every other out from level 10. So the same list answers two
+# questions — which controls ship disabled, and which the server will refuse to
+# an ordinary account — and they are one list because they are one idea: these
+# are the outputs that put chemicals in the water.
+TREATMENT_OUT_INDEXES = frozenset({2, 3, 8, 15})
+
+# Outs whose controls ship disabled in the entity registry. They still appear
+# under "Disabled entities" on the device page and are one click from being
+# enabled.
 #
 # The reason is not that they are less useful but that a stray tap on a
 # dashboard toggle there puts chemicals in the pool, or pulls a regulated
@@ -423,7 +432,7 @@ OUT_MODE_STATES = {
 #
 # **Read only when an entity is first registered**, so this changes what a new
 # install starts with and leaves existing ones exactly as they are.
-OUTS_DISABLED_BY_DEFAULT = frozenset({2, 3, 8, 15})
+OUTS_DISABLED_BY_DEFAULT = TREATMENT_OUT_INDEXES
 
 # Icons, only where Home Assistant has no default of its own. Probe types that
 # carry a device_class (temperature, ph, pressure) are left alone: HA already
@@ -462,14 +471,13 @@ OUT_ICONS = {
     15: "mdi:flask",
 }
 
-# MySystems.access — what the account may do with this pool. SetParam's source
-# gives two thresholds and nothing else does, so only these two are encoded:
-# below 10 it refuses every command, and below 16 it accepts only the
-# parameters on a server-side allowed list that is not published.
+# MySystems.access — what the account may do with this pool. Both write
+# endpoints gate on it, with the same two thresholds:
 #
-# **This gates parameter writes only.** SetOut's own source has not been seen,
-# so nothing here assumes an out obeys the same numbers — the switches and the
-# mode selects keep letting the server decide.
+#   < 10   SetOut and SetParam refuse everything.
+#   < 16   SetOut refuses the TREATMENT_OUT_INDEXES outs and allows the rest;
+#          SetParam accepts only the parameters on an allowed list that is not
+#          published, so that one is left to the server to answer.
 #
 # An absent access reads as unknown, never as refused: a payload that does not
 # carry it must not lock anyone out of their own pool.

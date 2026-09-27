@@ -83,6 +83,10 @@ whatever address it holds**.
 
 ## Current limitations
 
+- **Klereo reserves four outputs to a privileged account.** The pH corrector, the
+  disinfectant, the flocculant and hybrid chlorine need access level 16 on the pool; every
+  other output works from level 10. Below that the integration says so when you try,
+  instead of passing on an untranslated refusal from the server.
 - **The heating and the disinfectant cannot be driven when the controller does not say
   what the pool is equipped with** — no heating or no treatment, or a `HeaterMode` or
   `TraitMode` the integration does not recognise. They report their state and refuse to be

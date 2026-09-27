@@ -8,7 +8,8 @@ from .const import (DOMAIN, FILTRATION_OUT_INDEX, ICON_FILTRATION_SPEED,
                     SETPOINT_PARAM, SETPOINT_STEP)
 from .entity import (IO_TYPE_OUT, klereo_access, klereo_device_info,
                      klereo_io_names, klereo_may_command, klereo_out_mode_name,
-                     klereo_out_mode_states, klereo_pump_max_speed)
+                     klereo_out_mode_states, klereo_out_refusal,
+                     klereo_pump_max_speed)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -110,6 +111,18 @@ class KlereoFiltrationSpeed(CoordinatorEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         pool_data = self.coordinator.data
+        refusal = klereo_out_refusal(pool_data, FILTRATION_OUT_INDEX)
+        if refusal is not None:
+            # The speed writes out 1, which is not privileged, so in practice
+            # this is the level-10 gate.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=refusal,
+                translation_placeholders={
+                    "name": self._name,
+                    "access": str(klereo_access(pool_data)),
+                },
+            )
         states = klereo_out_mode_states(pool_data, FILTRATION_OUT_INDEX)
         if states is None:
             raise ServiceValidationError(

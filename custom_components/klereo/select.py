@@ -5,8 +5,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (DOMAIN, ICON_OUT_MODE, OUT_LABELS,
                     OUTS_DISABLED_BY_DEFAULT)
-from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
-                     klereo_out_mode_name, klereo_out_mode_states)
+from .entity import (IO_TYPE_OUT, klereo_access, klereo_device_info,
+                     klereo_io_names, klereo_out_mode_name,
+                     klereo_out_mode_states, klereo_out_refusal)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -153,6 +154,16 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
         )
 
     async def async_select_option(self, option: str) -> None:
+        refusal = klereo_out_refusal(self.coordinator.data, self._index)
+        if refusal is not None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=refusal,
+                translation_placeholders={
+                    "name": self._name,
+                    "access": str(klereo_access(self.coordinator.data)),
+                },
+            )
         mode = self._modes[option]
         state = self._state_for(mode)
         LOGGER.debug("Setting mode of #%s out%s to %s (%s), state=%s",

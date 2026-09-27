@@ -140,8 +140,9 @@ credential disclosure, not just a connection failure.
   and 3 have been seen and **0 is a real answer, not a missing one** — only an absent or
   non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
-- **The water-treatment outs ship disabled.** `OUTS_DISABLED_BY_DEFAULT` holds the pH
-  corrector (2), the disinfectant (3), the flocculant (8) and hybrid chlorine (15), and
+- **The water-treatment outs ship disabled.** `OUTS_DISABLED_BY_DEFAULT` is
+  `TREATMENT_OUT_INDEXES` — the pH corrector (2), the disinfectant (3), the flocculant (8)
+  and hybrid chlorine (15), the same four `SetOut` reserves to level 16 — and
   both the switch and the mode select set `entity_registry_enabled_default` from it. Not
   because they matter less: a stray tap on a dashboard toggle there puts chemicals in the
   pool, or pulls a regulated output out of regulation. Lighting, the auxiliaries, the
@@ -285,12 +286,22 @@ field must not lock anyone out of their own pool. A non-integer reads the same w
 threshold is deliberately *not* enforced locally: without the allowed list, only the
 server can say, so that refusal still travels.
 
-**This gates parameter writes alone.** `SetOut.php`'s own source has never been read, so
-nothing assumes an out obeys the same numbers; the switches and the mode selects still let
-the server decide, and a test pins that they do at every level. None of `SetParam`'s error
-texts match `AUTH_HINTS`, so a refusal that does reach the server surfaces as a plain
-`KlereoError` instead of triggering a JWT renewal and the reauth flow; that too is checked
-by a test, not assumed.
+`SetOut.php` gates on the same field with the same two thresholds, and its source settles
+the second one where `SetParam`'s could not: below 16 it refuses **exactly
+`TREATMENT_OUT_INDEXES`** — the pH corrector, the disinfectant, the flocculant and hybrid
+chlorine — and allows every other out from level 10. `entity.klereo_out_refusal()` returns
+the translation key for that, `account_read_only` or `out_needs_full_access`, and the
+switch, the mode select and the filtration speed all check it before writing.
+
+So one list answers two questions — which controls ship disabled, and which the server
+reserves — and `OUTS_DISABLED_BY_DEFAULT` is now that same constant rather than a second
+copy of it. They coincide because they are one idea: the outputs that put chemicals in the
+water.
+
+None of either endpoint's error texts match `AUTH_HINTS`, so a refusal that does reach the
+server surfaces as a plain `KlereoError` instead of triggering a JWT renewal and the
+reauth flow; that is checked by a test, not assumed. `GENERIC_ERROR` is a server-side
+constant whose text has not been seen, so it is the one that could still slip through.
 
 Writes to an out go through `SetOut.php` with `poolID`, `outIdx`, `newMode` and `newState`.
 `newState` takes the same encoding as `status` above — so turning the filtration on
@@ -299,6 +310,20 @@ sends speed 1, and speeds 2-7 are reachable but not exposed by a plain switch. B
 prefers over `out['status']`. It is cleared in `_handle_coordinator_update()`, so fresh
 server data always wins; a write also fires `coordinator.async_request_refresh()` so that
 handover happens in seconds rather than at the next 300 s poll.
+
+`SetOut.php` also **silently rewrites one combination**: Manuel with `newState` 1 on outs
+2, 3, 4 or 8 is turned into `newState` 0 and queued anyway, the server appending `!` to
+the command's label. The comment there reads *"Manuel ON not allowed for
+(pH-Des-Chauf-Floc)"*. That is the same rule the codeowner gave for those four outputs,
+arrived at independently, and `OUT_MODE_STATES` already refuses it client-side — so the
+integration never sends it. Were that refusal ever removed, the pool would quietly stop
+the output instead of starting it.
+
+Two smaller things from the same source. `comMode` defaults to **1** on `SetOut` and **0**
+on `SetParam`; neither is sent, so both take their default. And the server's own
+`$RegOutNames` and `$ModeNames` match `OUT_LABELS` and `OUT_MODES` slot for slot,
+confirming mode 5 as *Choc* and naming two the integration has no rules for, 7
+*Non config.* and 9 *Capteur*.
 
 `newMode` is an out's drive mode, named in `OUT_MODES` (0 Manuel, 1 Plages horaires,
 2 Minuterie, 3 Régulé, 4 Synchronisé, 6 Maintenance, 8 Impulsion). **It used to be

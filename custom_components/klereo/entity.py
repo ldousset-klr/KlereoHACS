@@ -2,8 +2,9 @@
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import (ACCESS_COMMAND_MIN, DOMAIN, FILTRATION_OUT_INDEX,
-                    MAX_PUMP_SPEED,
+from .const import (ACCESS_COMMAND_MIN, ACCESS_PARAM_ANY, DOMAIN,
+                    FILTRATION_OUT_INDEX, MAX_PUMP_SPEED,
+                    TREATMENT_OUT_INDEXES,
                     OUT_MODE_NAME_OVERRIDES, OUT_MODE_STATES, OUT_MODES,
                     PAYLOAD_VARIANTS, filtration_mode_states)
 
@@ -151,3 +152,23 @@ def klereo_may_command(pool_data):
     """
     access = klereo_access(pool_data)
     return access is None or access >= ACCESS_COMMAND_MIN
+
+
+def klereo_out_refusal(pool_data, index):
+    """The translation key refusing a write to this out, or None if it may go.
+
+    SetOut's own rule, and only its own: below level 10 nothing is allowed,
+    and below 16 the water-treatment outs are refused while every other out
+    goes through. Saying so here spares a round trip that comes back in French
+    with no hint that the account is the reason.
+
+    An unknown level allows the write, the server being the authority.
+    """
+    access = klereo_access(pool_data)
+    if access is None:
+        return None
+    if access < ACCESS_COMMAND_MIN:
+        return "account_read_only"
+    if access < ACCESS_PARAM_ANY and index in TREATMENT_OUT_INDEXES:
+        return "out_needs_full_access"
+    return None

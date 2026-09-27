@@ -14,8 +14,9 @@ from .const import (
     OUT_STATUS_ON,
     OUT_STATUS_UNKNOWN,
 )
-from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
-                     klereo_out_mode_name, klereo_out_mode_states)
+from .entity import (IO_TYPE_OUT, klereo_access, klereo_device_info,
+                     klereo_io_names, klereo_out_mode_name,
+                     klereo_out_mode_states, klereo_out_refusal)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -161,7 +162,21 @@ class KlereoOut(CoordinatorEntity, RestoreEntity, SwitchEntity):
         return None
 
     def _mode_and_rule(self):
-        """This out's current mode and its rule, or raise if it is read-only."""
+        """This out's current mode and its rule, or raise if it cannot be written.
+
+        The account's own rights come first: refusing here beats a round trip
+        the server answers in French, and beats it whatever the out's modes say.
+        """
+        refusal = klereo_out_refusal(self.coordinator.data, self._index)
+        if refusal is not None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=refusal,
+                translation_placeholders={
+                    "name": self._name,
+                    "access": str(klereo_access(self.coordinator.data)),
+                },
+            )
         states = klereo_out_mode_states(self.coordinator.data, self._index)
         if states is None:
             raise ServiceValidationError(
