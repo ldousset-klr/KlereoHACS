@@ -298,10 +298,13 @@ reserves — and `OUTS_DISABLED_BY_DEFAULT` is now that same constant rather tha
 copy of it. They coincide because they are one idea: the outputs that put chemicals in the
 water.
 
-None of either endpoint's error texts match `AUTH_HINTS`, so a refusal that does reach the
-server surfaces as a plain `KlereoError` instead of triggering a JWT renewal and the
-reauth flow; that is checked by a test, not assumed. `GENERIC_ERROR` is a server-side
-constant whose text has not been seen, so it is the one that could still slip through.
+**No error text either endpoint can produce matches `AUTH_HINTS`**, so a refusal that does
+reach the server surfaces as a plain `KlereoError` instead of triggering a JWT renewal and
+the reauth flow. All fourteen are pinned by a test, `GENERIC_ERROR` — *"Désolé, le service
+n'est pas disponible pour le moment"* — included. That check matters more than it looks: a
+false positive there would have the integration renew its token, replay, and then ask the
+user for credentials over a problem that has nothing to do with them. Any new hint added
+to `AUTH_HINTS` has to be run past that list.
 
 Writes to an out go through `SetOut.php` with `poolID`, `outIdx`, `newMode` and `newState`.
 `newState` takes the same encoding as `status` above — so turning the filtration on
