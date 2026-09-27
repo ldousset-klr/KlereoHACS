@@ -336,8 +336,20 @@ config flow's UI or the real HTTP calls. Those still want a real install.
 
 ## Todo
 
-- Expose more pool information
-- Writing the outputs that are still read-only, and a mode selector on them
+Writing the outputs and a mode selector on them are done — every output now carries its
+rules, and only a heating or disinfectant whose controller does not say what it drives
+stays read-only. What is left:
+
+- **An options flow**, so the server, the credentials and the poll interval can be
+  changed without removing and re-adding the pool.
+- **A configurable poll interval.** It is fixed at 5 minutes.
+- **The setpoint's real limits.** The control is bounded at 0–40 °C, which is a
+  placeholder: the controller's own limits were never supplied, and `EauMin`/`EauMax` are
+  the water probe's alarm thresholds, not the setpoint's. A reading outside the range
+  still displays.
+- **What `outs[].type` encodes.** It is not the output's role, and not the firmware's
+  `e_OutTypes` either, so it is published as an attribute and nothing reads it.
+- **More translations.** French and English only.
 
 ## Disclaimer
 
