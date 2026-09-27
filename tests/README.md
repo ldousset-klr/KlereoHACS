@@ -52,6 +52,7 @@ release, still install the component in a running Home Assistant and read the lo
 | --- | --- |
 | `test_access.py` | `access` thresholds from `SetOut.php`/`SetParam.php`: an absent level means unknown, never refused; the setpoint, switch, mode select and filtration speed all refuse locally below 10 with no round trip |
 | `test_counters.py` | the four `_TotalTime` runtime sensors, each reading its own `params` key; a missing or misspelled key creates no entity |
+| `test_dosed.py` | the dosed volumes: running seconds x the pump's flow in tenths of a litre per hour; no entity without both, or on a flow of zero (an electrolyser has no dosing pump) |
 | `test_device.py` | `DeviceInfo` from `tabSW` / `tabHW` / `podSerial`; an absent field stays absent rather than the string `"None"` |
 | `test_enabled.py` | `OUTS_DISABLED_BY_DEFAULT` on the switch and the mode select; the filtration speed and the sensors are untouched; disabled still means controllable |
 | `test_filt.py` | the filtration's speed encoding — `2` is speed 2 in Manuel and the keep sentinel elsewhere; Manuel's range follows `PumpMaxSpeed`; the speed entity writes in Manuel only |

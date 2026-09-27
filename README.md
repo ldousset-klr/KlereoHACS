@@ -43,6 +43,12 @@ One device per pool, named after its Klereo nickname, carrying:
   output doing whatever it was doing — including the filtration, which keeps its speed — except
   *Manuel* on the dosing pumps, the disinfectant and the heating, which stop them, the
   controller allowing nothing else there.
+- **The volume each dosing pump has put in the water**, in millilitres — the pH corrector
+  and the disinfectant. The controller counts the pump's running seconds and declares that
+  pump's flow rate separately; multiplying the two answers the question hours of pump time
+  cannot, since two pools with the same hours and different pumps have dosed different
+  amounts. A pool whose controller does not declare a flow, and an electrolyser, which has
+  no dosing pump at all, simply get no such sensor. The running times stay alongside.
 - **Diagnostic sensors** for the registration PIN, the device slot on the pod, the pool's
   water volume in m³, and the cumulative running time of the filtration, the pH corrector,
   the disinfectant and the heating. All are read-only. The controller counts those runtimes

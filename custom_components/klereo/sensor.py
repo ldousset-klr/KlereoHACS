@@ -4,9 +4,10 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (DOMAIN, ICON_INFO, ICON_WATER_VOLUME, PROBE_ICONS,
-                    PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
-                    PROBE_TYPE_DEFAULT)
+from .const import (CHLORINE_FLOW_PARAM, DOMAIN, ICON_INFO,
+                    ICON_WATER_VOLUME, ML_PER_FLOW_UNIT, PH_FLOW_PARAM,
+                    PROBE_ICONS, PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
+                    PROBE_TYPE_DEFAULT, SECONDS_PER_HOUR)
 from .entity import IO_TYPE_PROBE, klereo_device_info, klereo_io_names
 
 import logging
@@ -51,6 +52,52 @@ def _params_hours(key):
     return getter
 
 
+def _params_ml(time_key, flow_key):
+    """Turn a dosing pump's running time into the volume it actually dosed.
+
+    The controller counts the pump's running seconds and, separately, declares
+    that pump's flow rate in **tenths of a litre per hour** — so a 1.5 L/h
+    peristaltic pump reports 15. Multiplying the two is the only way to answer
+    the question a pool owner actually has: how much product went in. Hours of
+    pump time are a proxy nobody can act on, since two pools with the same
+    hours and different pumps have dosed different amounts.
+
+    Three things yield None, and therefore no entity at all, the same rule the
+    other rows follow: a missing or non-numeric counter, a missing or
+    non-numeric flow, and a flow of zero or less. That last one is not a
+    defensive check but the normal case on an **electrolyser** pool, which has
+    no dosing pump on out 3 at all — `ElectroChlore_TotalTime` still counts the
+    cell's running time, and a volume sensor pinned at 0 mL forever would be
+    noise rather than an answer.
+    """
+    def getter(data):
+        params = data.get("params") or {}
+        seconds = params.get(time_key)
+        flow = params.get(flow_key)
+        for value in (seconds, flow):
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                return None
+        if flow <= 0:
+            # No dosing pump on this output: see above.
+            return None
+        return round(seconds * flow * ML_PER_FLOW_UNIT / SECONDS_PER_HOUR)
+    return getter
+
+
+def _dosed(key, label, time_key, flow_key):
+    """A cumulative dosed volume, in millilitres.
+
+    Same shape as _runtime and for the same reasons: total_increasing absorbs
+    a counter reset without charting a negative spike, and the device_class
+    supplies a better icon than any we would pick. Sub-millilitre precision
+    would be inventing accuracy a peristaltic pump does not have, so the value
+    is rounded to whole millilitres.
+    """
+    return InfoSensor(key, label, _params_ml(time_key, flow_key),
+                      icon=None, unit="mL", device_class="volume",
+                      state_class="total_increasing")
+
+
 def _runtime(key, label, params_key):
     """A cumulative running-time counter, seconds in the payload, hours here.
 
@@ -90,6 +137,18 @@ INFO_SENSORS = (
     _runtime("phtime", "pH corrector runtime", "PHMinus_TotalTime"),
     _runtime("disinfectanttime", "Disinfectant runtime", "ElectroChlore_TotalTime"),
     _runtime("heatingtime", "Heating runtime", "Chauff_TotalTime"),
+
+    # The same two dosing counters again, multiplied by their pump's declared
+    # flow: what went into the water, rather than how long the pump ran. Both
+    # counters stay, being the raw figure and already carrying history.
+    #
+    # Hybrid chlorine (out 15) shares Chlore_Debit with the disinfectant but
+    # has no _TotalTime of its own, so it gets no volume — there is no running
+    # time to multiply.
+    _dosed("phvolume", "pH corrector volume",
+           "PHMinus_TotalTime", PH_FLOW_PARAM),
+    _dosed("disinfectantvolume", "Disinfectant volume",
+           "ElectroChlore_TotalTime", CHLORINE_FLOW_PARAM),
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):

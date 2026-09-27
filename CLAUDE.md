@@ -259,7 +259,21 @@ The rest of the code depends on these keys:
   `Chauff_TotalTime`, tracking outs 1 to 4. **The labels follow the output's role, not the
   key's wording** — `ElectroChlore_` counts out 3 whatever the pool is treated with, so
   naming that sensor after electro-chlorination would be wrong on a bromine or oxygen
-  pool. A key spelled differently on some firmware costs nothing: the getter returns
+  pool.
+  The two dosing counters are published **a second time, as the volume they dosed**:
+  `params.PHMinus_Debit` and `params.Chlore_Debit` give the pumps' flow rates in **tenths
+  of a litre per hour**, so a 1.5 L/h peristaltic pump reports 15, and `_params_ml()`
+  multiplies the two — `mL = seconds x flow x ML_PER_FLOW_UNIT / SECONDS_PER_HOUR`. Hours
+  of pump time are a proxy nobody can act on, two pools with the same hours and different
+  pumps having dosed different amounts. Both counters **stay** alongside, being the raw
+  figure and already carrying history. A **flow of zero or less creates no entity**, and
+  that is the normal case rather than a defensive check: an **electrolyser** pool has no
+  dosing pump on out 3 at all, though `ElectroChlore_TotalTime` still counts the cell, and
+  a volume pinned at 0 mL forever would be noise. A counter of zero *is* a real answer and
+  does create one. Hybrid chlorine (out 15) shares `Chlore_Debit` with the disinfectant
+  but has no `_TotalTime` of its own, so it gets no volume — there is nothing to multiply.
+  The value is rounded to whole millilitres, sub-millilitre precision being accuracy a
+  peristaltic pump does not have. A key spelled differently on some firmware costs nothing: the getter returns
   `None` and no entity is created. It is how `PROBE_TYPES` was
   first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at

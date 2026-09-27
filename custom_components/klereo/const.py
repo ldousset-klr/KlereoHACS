@@ -539,3 +539,20 @@ ICON_FILTRATION_SPEED = "mdi:speedometer"
 ICON_OUT_MODE = "mdi:tune"
 ICON_INFO = "mdi:identifier"
 ICON_WATER_VOLUME = "mdi:pool"
+
+# The dosing pumps' flow rates, read from `params`. Both are in **tenths of a
+# litre per hour**, so a 1.5 L/h peristaltic pump reports 15.
+#
+# `PHMinus_Debit` is the pH corrector's pump (out 2) and `Chlore_Debit` the
+# disinfectant's (out 3). Hybrid chlorine (out 15) shares the latter pump, but
+# it carries no `_TotalTime` counter, so there is no running time to turn into
+# a volume there — only the two outs that do get a volume sensor.
+PH_FLOW_PARAM = "PHMinus_Debit"
+CHLORINE_FLOW_PARAM = "Chlore_Debit"
+
+# One unit of that flow (0.1 L/h) expressed in millilitres per hour, and the
+# hour itself in seconds: the counters are in seconds, so
+#   mL = seconds x flow x ML_PER_FLOW_UNIT / SECONDS_PER_HOUR
+# which is why a flow of 15 over one hour comes out at 1500 mL.
+ML_PER_FLOW_UNIT = 100
+SECONDS_PER_HOUR = 3600
