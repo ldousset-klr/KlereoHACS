@@ -339,6 +339,15 @@ TRAIT_ELECTRO_BSV = 6
 TRAIT_IGNORE = 7
 TRAIT_ELECTRO_KLR = 8
 
+# The treatments whose out 3 drives a **dosing pump**, and whose running time
+# can therefore be turned into a volume. Bromine does not — its out feeds a
+# brominator — and an electrolyser has no pump at all, its out running the
+# cell. On those, and wherever the kind is not established (TRAIT_NONE,
+# TRAIT_IGNORE, a missing or unrecognised TraitMode), the disinfectant stays a
+# running time in hours: multiplying it by a pump flow would state a volume of
+# product that never went in.
+PUMP_DOSED_TREATMENTS = frozenset({TRAIT_CHLORE, TRAIT_OXYGEN})
+
 _MODE_STATES_TRAIT_CHLORE = {
     0: _rule((OUT_STATUS_OFF,)),                    # Manuel — stop only
     2: _rule(_SWITCHED_BOTH, OUT_STATE_KEEP),       # Volume fixe
@@ -448,7 +457,13 @@ OUT_MODE_STATES = {
 # questions — which controls ship disabled, and which the server will refuse to
 # an ordinary account — and they are one list because they are one idea: these
 # are the outputs that put chemicals in the water.
-TREATMENT_OUT_INDEXES = frozenset({2, 3, 8, 15})
+PH_OUT_INDEX = 2
+FLOCCULANT_OUT_INDEX = 8
+HYBRID_CHLORINE_OUT_INDEX = 15
+TREATMENT_OUT_INDEXES = frozenset({
+    PH_OUT_INDEX, DISINFECTANT_OUT_INDEX,
+    FLOCCULANT_OUT_INDEX, HYBRID_CHLORINE_OUT_INDEX,
+})
 
 # Outs whose controls ship disabled in the entity registry. They still appear
 # under "Disabled entities" on the device page and are one click from being
@@ -549,6 +564,17 @@ ICON_WATER_VOLUME = "mdi:pool"
 # a volume there — only the two outs that do get a volume sensor.
 PH_FLOW_PARAM = "PHMinus_Debit"
 CHLORINE_FLOW_PARAM = "Chlore_Debit"
+
+# Where each dosing out's running seconds live. They are in three different
+# places, which is why the volume rows take a source rather than a params key:
+# the pH corrector and the disinfectant have a `params` counter, the flocculant
+# only its own `outs[]` entry, and hybrid chlorine only an `ExtraParams` key.
+#
+# `outs[]` is spelled `totalTime` in every capture; the codeowner wrote
+# `TotalTime`. Both are accepted, since a key read under the wrong spelling
+# yields no sensor and says nothing about why.
+OUT_TOTAL_TIME_KEYS = ("totalTime", "TotalTime")
+HYBRID_CHLORINE_TIME_KEY = "HybChl_TotalTime"
 
 # One unit of that flow (0.1 L/h) expressed in millilitres per hour, and the
 # hour itself in seconds: the counters are in seconds, so

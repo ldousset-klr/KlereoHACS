@@ -4,10 +4,13 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (CHLORINE_FLOW_PARAM, DOMAIN, ICON_INFO,
-                    ICON_WATER_VOLUME, ML_PER_FLOW_UNIT, PH_FLOW_PARAM,
-                    PROBE_ICONS, PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
-                    PROBE_TYPE_DEFAULT, SECONDS_PER_HOUR)
+from .const import (CHLORINE_FLOW_PARAM, DOMAIN, FLOCCULANT_OUT_INDEX,
+                    HYBRID_CHLORINE_OUT_INDEX, HYBRID_CHLORINE_TIME_KEY,
+                    ICON_INFO, ICON_WATER_VOLUME, ML_PER_FLOW_UNIT,
+                    OUT_TOTAL_TIME_KEYS, PH_FLOW_PARAM, PROBE_ICONS,
+                    PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
+                    PROBE_TYPE_DEFAULT, PUMP_DOSED_TREATMENTS,
+                    SECONDS_PER_HOUR)
 from .entity import IO_TYPE_PROBE, klereo_device_info, klereo_io_names
 
 import logging
@@ -52,7 +55,52 @@ def _params_hours(key):
     return getter
 
 
-def _params_ml(time_key, flow_key):
+def _seconds_param(key):
+    """Running seconds from a `params` counter — the pH corrector's and the
+    disinfectant's."""
+    return lambda data: (data.get("params") or {}).get(key)
+
+
+def _seconds_out(index):
+    """Running seconds from an out's own entry — the flocculant's, which has no
+    `params` counter of its own.
+
+    Both spellings of the key are tried: every capture shows `totalTime`, the
+    codeowner wrote `TotalTime`, and reading only one of them would produce no
+    sensor without saying why.
+    """
+    def source(data):
+        for out in data.get("outs") or ():
+            if out.get("index") != index:
+                continue
+            for key in OUT_TOTAL_TIME_KEYS:
+                if key in out:
+                    return out[key]
+            return None
+        return None
+    return source
+
+
+def _seconds_extra(key):
+    """Running seconds from `ExtraParams` — hybrid chlorine's, which lives
+    neither in `params` nor on the out. Whole pools carry no `ExtraParams` at
+    all, which simply yields no sensor."""
+    return lambda data: (data.get("ExtraParams") or {}).get(key)
+
+
+def _pump_dosed_treatment(data):
+    """Whether out 3 drives a dosing pump, from `params.TraitMode`.
+
+    Only chlorine and oxygen do. Bromine feeds a brominator and an electrolyser
+    runs a cell, so on those the counter is running time and nothing else —
+    multiplying it by a pump's flow would state a volume of product that never
+    went in. A TraitMode that is absent, reserved or outside the enum reads the
+    same way: the kind is not established, so no volume is claimed.
+    """
+    return (data.get("params") or {}).get("TraitMode") in PUMP_DOSED_TREATMENTS
+
+
+def _params_ml(seconds_source, flow_key, gate=None):
     """Turn a dosing pump's running time into the volume it actually dosed.
 
     The controller counts the pump's running seconds and, separately, declares
@@ -62,18 +110,22 @@ def _params_ml(time_key, flow_key):
     pump time are a proxy nobody can act on, since two pools with the same
     hours and different pumps have dosed different amounts.
 
-    Three things yield None, and therefore no entity at all, the same rule the
-    other rows follow: a missing or non-numeric counter, a missing or
-    non-numeric flow, and a flow of zero or less. That last one is not a
-    defensive check but the normal case on an **electrolyser** pool, which has
-    no dosing pump on out 3 at all — `ElectroChlore_TotalTime` still counts the
-    cell's running time, and a volume sensor pinned at 0 mL forever would be
-    noise rather than an answer.
+    `seconds_source` reads the counter, which lives in a different place on
+    each out — see the three helpers above. `gate`, where a row has one, says
+    whether that out drives a pump at all on this pool.
+
+    Four things yield None, and therefore no entity at all, the same rule the
+    other rows follow: a gate that answers no, a missing or non-numeric
+    counter, a missing or non-numeric flow, and a flow of zero or less. That
+    last one is the normal case rather than a defensive check — a pool whose
+    controller declares no pump has nothing to multiply, and a volume sensor
+    pinned at 0 mL forever would be noise rather than an answer.
     """
     def getter(data):
-        params = data.get("params") or {}
-        seconds = params.get(time_key)
-        flow = params.get(flow_key)
+        if gate is not None and not gate(data):
+            return None
+        seconds = seconds_source(data)
+        flow = (data.get("params") or {}).get(flow_key)
         for value in (seconds, flow):
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 return None
@@ -84,7 +136,7 @@ def _params_ml(time_key, flow_key):
     return getter
 
 
-def _dosed(key, label, time_key, flow_key):
+def _dosed(key, label, seconds_source, flow_key, gate=None):
     """A cumulative dosed volume, in millilitres.
 
     Same shape as _runtime and for the same reasons: total_increasing absorbs
@@ -93,7 +145,7 @@ def _dosed(key, label, time_key, flow_key):
     would be inventing accuracy a peristaltic pump does not have, so the value
     is rounded to whole millilitres.
     """
-    return InfoSensor(key, label, _params_ml(time_key, flow_key),
+    return InfoSensor(key, label, _params_ml(seconds_source, flow_key, gate),
                       icon=None, unit="mL", device_class="volume",
                       state_class="total_increasing")
 
@@ -138,17 +190,29 @@ INFO_SENSORS = (
     _runtime("disinfectanttime", "Disinfectant runtime", "ElectroChlore_TotalTime"),
     _runtime("heatingtime", "Heating runtime", "Chauff_TotalTime"),
 
-    # The same two dosing counters again, multiplied by their pump's declared
-    # flow: what went into the water, rather than how long the pump ran. Both
-    # counters stay, being the raw figure and already carrying history.
+    # What each dosing pump has actually put in the water, rather than how long
+    # it ran. The counters above stay alongside, being the raw figure and
+    # already carrying history.
     #
-    # Hybrid chlorine (out 15) shares Chlore_Debit with the disinfectant but
-    # has no _TotalTime of its own, so it gets no volume — there is no running
-    # time to multiply.
+    # One flow per pump, not per output: PHMinus_Debit drives the pH corrector,
+    # and Chlore_Debit the other three — the disinfectant, the flocculant and
+    # hybrid chlorine all meter from it.
+    #
+    # The counters, though, are in three different places. Only the pH
+    # corrector and the disinfectant have a params counter; the flocculant's
+    # running time is on its own out, and hybrid chlorine's is in ExtraParams.
     _dosed("phvolume", "pH corrector volume",
-           "PHMinus_TotalTime", PH_FLOW_PARAM),
+           _seconds_param("PHMinus_TotalTime"), PH_FLOW_PARAM),
+    # The only row with a gate: out 3 drives a pump on a chlorine or oxygen
+    # pool and nothing of the sort on a bromine or electrolyser one, where the
+    # running time in hours above remains the whole answer.
     _dosed("disinfectantvolume", "Disinfectant volume",
-           "ElectroChlore_TotalTime", CHLORINE_FLOW_PARAM),
+           _seconds_param("ElectroChlore_TotalTime"), CHLORINE_FLOW_PARAM,
+           gate=_pump_dosed_treatment),
+    _dosed("flocculantvolume", "Flocculant volume",
+           _seconds_out(FLOCCULANT_OUT_INDEX), CHLORINE_FLOW_PARAM),
+    _dosed("hybridchlorinevolume", "Hybrid chlorine volume",
+           _seconds_extra(HYBRID_CHLORINE_TIME_KEY), CHLORINE_FLOW_PARAM),
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
