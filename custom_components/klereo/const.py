@@ -16,9 +16,10 @@ KLEREO_PATH = "/php"
 UPDATE_INTERVAL = 300
 # Bounds of the poll interval the options flow offers, in seconds. Every poll
 # is a GetPoolDetails on the Klereo server, multiplied by every Home Assistant
-# driving a pool, so the floor is a minute; past an hour the entities would be
-# more stale than useful.
-SCAN_INTERVAL_MIN = 60
+# driving a pool, so the floor is the default itself — the codeowner's call:
+# the interval can be lengthened, never shortened. Past an hour the entities
+# would be more stale than useful.
+SCAN_INTERVAL_MIN = UPDATE_INTERVAL
 SCAN_INTERVAL_MAX = 3600
 
 

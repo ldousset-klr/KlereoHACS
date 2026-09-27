@@ -99,7 +99,9 @@ credential disclosure, not just a connection failure.
   `hass.async_add_executor_job` (this is the bridge between HA's async world and the
   blocking `requests` calls), and drives a `DataUpdateCoordinator` polling at
   `scan_interval(entry.options)` — `UPDATE_INTERVAL` (300 s) unless the options flow set
-  another, clamped to `SCAN_INTERVAL_MIN`..`MAX` (60..3600 s). Coordinator + api are stashed in
+  another, clamped to `SCAN_INTERVAL_MIN`..`MAX` (300..3600 s). **The floor is the default** — the
+  codeowner's call, every poll being a request to the Klereo server: the interval can be
+  lengthened, never shortened below 300 s. Coordinator + api are stashed in
   `hass.data[DOMAIN][entry.entry_id]` for the platforms.
   `PLATFORMS = ["sensor", "switch", "number", "select"]`.
   The update callback maps `KlereoAuthError` to `ConfigEntryAuthFailed` (triggering the

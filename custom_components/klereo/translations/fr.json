@@ -57,7 +57,7 @@
     "step": {
       "init": {
         "title": "Klereo Connect",
-        "description": "Fréquence de lecture de la piscine sur le serveur Klereo. Chaque lecture est une requête vers Klereo : un intervalle plus court coûte plus pour peu de gain, les mesures d'eau n'évoluant que pendant la filtration.",
+        "description": "Fréquence de lecture de la piscine sur le serveur Klereo, de 5 minutes à une heure. Un intervalle plus long allège la charge du serveur Klereo, au prix de mesures moins récentes.",
         "data": {
           "scan_interval": "Intervalle de rafraîchissement"
         }

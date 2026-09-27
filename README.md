@@ -92,9 +92,9 @@ whatever address it holds**.
 Once the pool is added, two menus on its entry change it without removing it — and so
 without losing its entities or their history:
 
-- **Configure** sets the **poll interval**, between 60 seconds and one hour, 5 minutes by
-  default. Every refresh is a request to the Klereo server, and water readings only move
-  while the filtration runs, so a shorter interval costs more than it shows.
+- **Configure** sets the **poll interval**, from 5 minutes — the default, and the floor —
+  up to one hour. Every refresh is a request to the Klereo server, so the interval can be
+  lengthened to ease that load, but not shortened.
 - **Reconfigure** changes the **server** and the **credentials**. The password is asked for
   again every time, since it will be sent to the server entered there; the new settings
   are checked against the same pool before they are saved.

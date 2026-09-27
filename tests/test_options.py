@@ -40,26 +40,28 @@ def test_options(check, monkeypatch):
     print("== constantes ==")
     check("clé", CONF_SCAN_INTERVAL, 'scan_interval')
     check("défaut 5 min", UPDATE_INTERVAL, 300)
-    check("bornes", (SCAN_INTERVAL_MIN, SCAN_INTERVAL_MAX), (60, 3600))
+    check("le plancher est le défaut", SCAN_INTERVAL_MIN, UPDATE_INTERVAL)
+    check("bornes", (SCAN_INTERVAL_MIN, SCAN_INTERVAL_MAX), (300, 3600))
 
     print("== scan_interval() ==")
     for label, options, want in [
         ("options absentes", None, 300),
         ("options vides : entrée d'avant l'options flow", {}, 300),
         ("valeur réglée", {'scan_interval': 900}, 900),
-        ("borne basse", {'scan_interval': 60}, 60),
+        ("borne basse", {'scan_interval': 300}, 300),
         ("borne haute", {'scan_interval': 3600}, 3600),
-        ("sous la borne : ramenée", {'scan_interval': 10}, 60),
+        ("sous la borne : ramenée", {'scan_interval': 60}, 300),
+        ("juste sous la borne : ramenée", {'scan_interval': 299}, 300),
         ("au-dessus : ramenée", {'scan_interval': 86400}, 3600),
-        ("flottant arrondi", {'scan_interval': 90.6}, 91),
-        ("chaîne : défaut", {'scan_interval': '120'}, 300),
+        ("flottant arrondi", {'scan_interval': 900.6}, 901),
+        ("chaîne : défaut", {'scan_interval': '900'}, 300),
         ("booléen : défaut", {'scan_interval': True}, 300),
         ("NaN : défaut", {'scan_interval': float('nan')}, 300),
         ("infini : défaut", {'scan_interval': float('inf')}, 300),
         ("None : défaut", {'scan_interval': None}, 300),
     ]:
         check(f"  {label}", scan_interval(options), want)
-    check("  toujours un int", type(scan_interval({'scan_interval': 90.6})), int)
+    check("  toujours un int", type(scan_interval({'scan_interval': 900.6})), int)
 
     print("== le config flow expose l'options flow ==")
     check("classe", type(KlereoConfigFlow.async_get_options_flow(None)), KlereoOptionsFlow)
@@ -82,15 +84,15 @@ def test_options(check, monkeypatch):
     check("défaut = valeur en cours", form['data_schema']({}), {'scan_interval': 900})
     form = run(options_flow({'scan_interval': 5}).async_step_init())
     check("défaut d'une valeur hors bornes : ramenée", form['data_schema']({}),
-          {'scan_interval': 60})
+          {'scan_interval': 300})
 
     print("== enregistrement ==")
     done = run(options_flow({}).async_step_init({'scan_interval': 600.0}))
     check("entrée créée", done['type'], 'create_entry')
     check("secondes entières", done['data'], {'scan_interval': 600})
     check("un int, pas un float", type(done['data']['scan_interval']), int)
-    done = run(options_flow({'autre': 1}).async_step_init({'scan_interval': 120}))
-    check("les autres options sont gardées", done['data'], {'autre': 1, 'scan_interval': 120})
+    done = run(options_flow({'autre': 1}).async_step_init({'scan_interval': 1200}))
+    check("les autres options sont gardées", done['data'], {'autre': 1, 'scan_interval': 1200})
 
     print("== reconfigure ==")
     monkeypatch.setattr(config_flow, 'KlereoAPI', FakeAPI)

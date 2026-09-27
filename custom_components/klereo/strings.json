@@ -57,7 +57,7 @@
     "step": {
       "init": {
         "title": "Klereo Connect",
-        "description": "How often the pool is read from the Klereo server. Each read is a request to Klereo, so a shorter interval costs more for little gain: water readings only change while the filtration runs.",
+        "description": "How often the pool is read from the Klereo server, from 5 minutes to one hour. A longer interval eases the load on the Klereo server, at the cost of less recent readings.",
         "data": {
           "scan_interval": "Poll interval"
         }
