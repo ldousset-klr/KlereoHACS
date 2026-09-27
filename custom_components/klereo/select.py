@@ -3,7 +3,8 @@ from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ICON_OUT_MODE, OUT_LABELS
+from .const import (DOMAIN, ICON_OUT_MODE, OUT_LABELS,
+                    OUTS_DISABLED_BY_DEFAULT)
 from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
                      klereo_out_mode_name, klereo_out_mode_states)
 
@@ -57,6 +58,10 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
         base = (klereo_name or OUT_LABELS.get(self._index)
                 or f"klereo{poolid}out{self._index}")
         self._name = f"{base} mode"
+        # The water-treatment outs ship disabled: see OUTS_DISABLED_BY_DEFAULT.
+        self._attr_entity_registry_enabled_default = (
+            self._index not in OUTS_DISABLED_BY_DEFAULT
+        )
         # Offered in the firmware's own order, under this out's own wording.
         # Resolved once here: the heating output's list depends on the payload,
         # and HeaterMode is a rewiring, not something that changes under a poll.

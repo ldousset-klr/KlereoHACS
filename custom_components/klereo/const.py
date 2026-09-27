@@ -407,6 +407,24 @@ OUT_MODE_STATES = {
 # depends on it: the heating and the disinfectant need their params key to name
 # a kind, and an out absent from the payload has no entities at all.
 
+# Outs whose controls ship disabled in the entity registry: the four that dose
+# the water — pH corrector (2), disinfectant (3), flocculant (8) and hybrid
+# chlorine (15). They still appear under "Disabled entities" on the device
+# page and are one click from being enabled.
+#
+# The reason is not that they are less useful but that a stray tap on a
+# dashboard toggle there puts chemicals in the pool, or pulls a regulated
+# output out of regulation. Lighting, the auxiliaries, the heating and the
+# filtration carry no such cost, so they stay enabled.
+#
+# This covers the switch and the mode select — the things that *write*. Probes,
+# the diagnostic sensors and the filtration speed are untouched, the speed
+# being on out 1, which stays enabled.
+#
+# **Read only when an entity is first registered**, so this changes what a new
+# install starts with and leaves existing ones exactly as they are.
+OUTS_DISABLED_BY_DEFAULT = frozenset({2, 3, 8, 15})
+
 # Icons, only where Home Assistant has no default of its own. Probe types that
 # carry a device_class (temperature, ph, pressure) are left alone: HA already
 # picks a fitting icon and changing it would also lose the state-aware variants.

@@ -126,6 +126,15 @@ credential disclosure, not just a connection failure.
   and 3 have been seen and **0 is a real answer, not a missing one** — only an absent or
   non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
+- **The water-treatment outs ship disabled.** `OUTS_DISABLED_BY_DEFAULT` holds the pH
+  corrector (2), the disinfectant (3), the flocculant (8) and hybrid chlorine (15), and
+  both the switch and the mode select set `entity_registry_enabled_default` from it. Not
+  because they matter less: a stray tap on a dashboard toggle there puts chemicals in the
+  pool, or pulls a regulated output out of regulation. Lighting, the auxiliaries, the
+  heating and the filtration carry no such cost and stay enabled — which is also why the
+  filtration speed entity is untouched, being on out 1. As with the water volume sensor,
+  **the flag is read only at first registration**, so this changes what a new install
+  starts with and leaves existing ones alone.
 - `select.py` — one entity per writable out, its drive mode. Offered exactly where
   `klereo_out_mode_states()` answers — so every out has one, save a heating or
   disinfectant whose kind the payload does not name. The options are resolved **once, in `__init__`**: `HeaterMode`, `TraitMode` and

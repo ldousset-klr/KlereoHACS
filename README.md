@@ -19,6 +19,12 @@ One device per pool, named after its Klereo nickname, carrying:
   filtration is in *Manuel*; in the other modes the schedule or the regulator owns the
   pump and the control says so rather than sending a value the controller would read as
   something else.
+- **The controls for the outputs that dose the water — the pH corrector, the disinfectant,
+  the flocculant and hybrid chlorine — ship disabled**, under *Disabled entities* on the
+  device page, one click from being enabled. A stray tap on a dashboard toggle there puts
+  chemicals in the pool. Lighting, the auxiliaries, the heating and the filtration are
+  enabled as usual. Upgrading changes nothing: the setting only applies to entities Home
+  Assistant registers for the first time.
 - **A mode selector** on each output you can drive, offering what that particular output
   accepts: *Manuel*, *Plages horaires*, *Minuterie*, *Synchronisé*, *Maintenance* and
   *Impulsion* on lighting and the auxiliaries; *Manuel*, *Plages horaires*, *Régulé* and

@@ -9,6 +9,7 @@ from .const import (
     FILTRATION_OUT_INDEX,
     OUT_ICONS,
     OUT_LABELS,
+    OUTS_DISABLED_BY_DEFAULT,
     OUT_STATUS_OFF,
     OUT_STATUS_ON,
     OUT_STATUS_UNKNOWN,
@@ -63,6 +64,10 @@ class KlereoOut(CoordinatorEntity, RestoreEntity, SwitchEntity):
         self._attr_icon = OUT_ICONS.get(out['index'])
         self._index = out['index']
         self._poolid = poolid
+        # The water-treatment outs ship disabled: see OUTS_DISABLED_BY_DEFAULT.
+        self._attr_entity_registry_enabled_default = (
+            self._index not in OUTS_DISABLED_BY_DEFAULT
+        )
         # Optimistic state held between a write and the next successful poll.
         self._optimistic_state = None
         # Filtration only: the last speed it was seen running at, so turning it
