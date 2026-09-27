@@ -9,12 +9,14 @@ from .const import (
     FILTRATION_OUT_INDEX,
     OUT_ICONS,
     OUT_LABELS,
+    OUTS_DISABLED_BY_DEFAULT,
     OUT_STATUS_OFF,
     OUT_STATUS_ON,
     OUT_STATUS_UNKNOWN,
 )
-from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
-                     klereo_out_mode_name, klereo_out_mode_states)
+from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
+                     klereo_device_info, klereo_io_names, klereo_out_mode_name,
+                     klereo_out_mode_states, klereo_out_refusal)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -40,7 +42,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     async_add_entities(switches)
 
 
-class KlereoOut(CoordinatorEntity, RestoreEntity, SwitchEntity):
+class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEntity):
     """An out as a switch.
 
     RestoreEntity is here for the filtration alone: turning it on has to pick a
@@ -63,12 +65,19 @@ class KlereoOut(CoordinatorEntity, RestoreEntity, SwitchEntity):
         self._attr_icon = OUT_ICONS.get(out['index'])
         self._index = out['index']
         self._poolid = poolid
+        # The water-treatment outs ship disabled: see OUTS_DISABLED_BY_DEFAULT.
+        self._attr_entity_registry_enabled_default = (
+            self._index not in OUTS_DISABLED_BY_DEFAULT
+        )
         # Optimistic state held between a write and the next successful poll.
         self._optimistic_state = None
         # Filtration only: the last speed it was seen running at, so turning it
         # on resumes it rather than dropping the pump to its slowest.
         self._last_speed = None
         self._learn_speed(out)
+
+    def _clear_optimistic(self):
+        self._optimistic_state = None
 
     @callback
     def _learn_speed(self, out):
@@ -156,7 +165,21 @@ class KlereoOut(CoordinatorEntity, RestoreEntity, SwitchEntity):
         return None
 
     def _mode_and_rule(self):
-        """This out's current mode and its rule, or raise if it is read-only."""
+        """This out's current mode and its rule, or raise if it cannot be written.
+
+        The account's own rights come first: refusing here beats a round trip
+        the server answers in French, and beats it whatever the out's modes say.
+        """
+        refusal = klereo_out_refusal(self.coordinator.data, self._index)
+        if refusal is not None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=refusal,
+                translation_placeholders={
+                    "name": self._name,
+                    "access": str(klereo_access(self.coordinator.data)),
+                },
+            )
         states = klereo_out_mode_states(self.coordinator.data, self._index)
         if states is None:
             raise ServiceValidationError(
@@ -213,18 +236,18 @@ class KlereoOut(CoordinatorEntity, RestoreEntity, SwitchEntity):
         mode, rule = self._mode_and_rule()
         state = self._on_state(rule)
         self._writable_mode(state, mode, rule)
-        await self.hass.async_add_executor_job(
+        reply = await self.hass.async_add_executor_job(
             self._api.set_out, self._index, state, mode
         )
         self._optimistic_state = True
         self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        self._follow_command(reply, f"{self._name} on")
 
     async def async_turn_off(self, **kwargs):
         mode = self._writable_mode(OUT_STATUS_OFF)
-        await self.hass.async_add_executor_job(
+        reply = await self.hass.async_add_executor_job(
             self._api.turn_off_device, self._index, mode
         )
         self._optimistic_state = False
         self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        self._follow_command(reply, f"{self._name} off")

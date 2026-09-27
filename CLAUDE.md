@@ -7,22 +7,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A Home Assistant custom integration (distributed via HACS) for Klereo swimming pool
 controllers. The component lives in `custom_components/klereo/` and is copied as-is to
 the same path under the Home Assistant host's `config/`. The root holds `README.md`,
-`hacs.json` (HACS reads it there, never inside the component), `LICENSE` and
-`.github/workflows/`. There is no
-build system, no test suite, and no lint/CI configuration.
+`hacs.json` (HACS reads it there, never inside the component), `LICENSE`,
+`.github/workflows/`, `pytest.ini` and `tests/`. There is no build system and no
+linter; `tests/` holds a pytest suite that runs against a stub Home Assistant, and
+`.github/workflows/validate.yml` runs it.
 
 All source paths below are relative to `custom_components/klereo/`.
 
 ## Testing changes
 
-There is no local test harness. The only way to exercise the code is to copy
-`custom_components/klereo/` into a running Home Assistant's `config/custom_components/`,
-restart HA, add the integration via the UI config flow (username / password / poolID),
-and read the logs. Everything logs through `logging.getLogger(__name__)` at INFO/DEBUG, so raise the
+`python -m pytest` from the root runs the suite in `tests/`. It needs **pytest and
+nothing else** — no Home Assistant, no `requests`, no network. `tests/klereo_stub.py`
+installs fake `homeassistant.*` modules into `sys.modules`, and `tests/conftest.py`
+imports it before anything else so the component's own imports resolve against the stub.
+The stub also carries the fakes the suites drive the code with: `Api` (records every
+call and can be told what `command_status` should answer), `Coordinator`, `Hass` (whose
+`keep_tasks`/`run_tasks` let a test step through a background confirmation) and
+`FakeEntry`. `conftest.py` additionally patches `asyncio.sleep` to a no-op, so the seven
+`COMMAND_POLL_DELAYS` waits cost nothing.
+
+Assertions go through the `check` fixture rather than bare `assert`: it records every
+failure and reports them together at the end of the test, so one run tells you all of
+what broke instead of only the first. A suite is one test function taking `check` and
+ending on `check.assert_ok()`. `tests/README.md` lists what each suite covers.
+
+The suites were written against the tables and resolvers, not against captures, and that
+is deliberate: **no observed mode list ever matched the one the codeowner supplied**, so
+a test asserting what a pool was seen doing would pin the wrong rule. They assert the
+firmware's rules, the payload-driven variants, the refusals and the optimistic/confirm
+dance. When a rule legitimately changes, the failing suite is the record of the old one —
+update it and say so, rather than reading it as a regression.
+
+What the suite does **not** do is exercise Home Assistant itself — entity registration,
+the config flow's UI, the coordinator's real scheduling and every HTTP call are stubbed
+out. For those, and before any release, still copy `custom_components/klereo/` into a
+running Home Assistant's `config/custom_components/`, restart HA, add the integration via
+the UI config flow (username / password / poolID), and read the logs. Everything logs through `logging.getLogger(__name__)` at INFO/DEBUG, so raise the
 `custom_components.klereo` logger to `debug` in `configuration.yaml` when debugging.
 
-`.github/workflows/validate.yml` runs **hassfest** and the **HACS action** on every push
-to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
+`.github/workflows/validate.yml` runs **pytest** (on Python 3.12 and 3.13),
+**hassfest** and the **HACS action** on every push to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
 `domain`, `name`, then alphabetical, and an integration defining `async_setup` must also
 define a `CONFIG_SCHEMA` — this one has neither, being config-entry only, and declares
 `cv.config_entry_only_config_schema(DOMAIN)`. The HACS action additionally requires the
@@ -75,13 +99,25 @@ credential disclosure, not just a connection failure.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
   pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
   Both platforms build it once in `async_setup_entry` and pass it to each entity. Optional
-  fields (`sw_version` from **`tabSW`**, the board software version like "212D" — *not*
-  `PodSW`, which is the pod application number — and `serial_number` from `podSerial`) are
-  only set when the payload carries them, so a missing one is absent rather than the
-  string `"None"`. `DeviceInfo` has no free-form field, so the pool's `register.pin` and
-  its `device` number are published as **diagnostic sensors** instead (`INFO_SENSORS` in
-  `sensor.py`), which is how Home Assistant surfaces extra device metadata on the device
-  page. `device` is the slot on the physical pod: the two systems sharing a `podSerial`
+  fields are only set when the payload carries them, so a missing one is absent rather
+  than the string `"None"`: `sw_version` from **`tabSW`**, the board software version like
+  "212D" — *not* `PodSW`, which is the pod application number — `hw_version` from
+  **`tabHW`**, the board's hardware revision, and `serial_number` from `podSerial`. A
+  value belongs here rather than among the diagnostic sensors exactly when `DeviceInfo`
+  has a field for it. `DeviceInfo` has no free-form field, so the pool's `register.pin`, its
+  `device` number, its `params.VolumeEau` water volume and the four runtime counters are
+  published as **diagnostic sensors** instead (`INFO_SENSORS` in `sensor.py`), which is how Home Assistant surfaces
+  extra device metadata on the device page. Each row is an
+  `InfoSensor(key, label, getter, icon, unit, enabled, device_class, state_class)`,
+  everything that varies living in the row rather than in subclasses. A row whose getter returns `None` creates no entity,
+  so a missing value is absent rather than shown as `"None"` — but `0` is a real answer
+  and does create one. A row's icon is applied **only where it carries no
+  `device_class`**, the same rule `KlereoSensor` follows — the filtration runtime has one
+  and so takes Home Assistant's. `enabled=False` — the water volume — still
+  registers the entity, one click away on the device page, but keeps it out of the
+  recorder until asked for; a fixed property of the installation does not deserve a row
+  every poll. **That flag is read only when an entity is first registered**, so changing it
+  later leaves existing installs as they are. `device` is the slot on the physical pod: the two systems sharing a `podSerial`
   and a `pin` are device 0 and device 1.
   **The device is keyed on the poolID, and must stay that way**: one physical pod can serve
   several systems — two captured pools share a `podSerial` and a `register.pin` — so keying
@@ -107,13 +143,37 @@ credential disclosure, not just a connection failure.
   The entry's `unique_id` is the poolID, so a pool can only be configured once;
   `async_setup_entry` backfills it on entries created before that existed. Entry data keeps
   the same three keys, so nothing migrates.
-- `number.py` — the filtration speed, the one out whose `status` is a speed index. It is
+- `number.py` — two entities, added independently: a pool may have either, both or
+  neither. **The water setpoint** is `params.ConsigneEau`, the temperature the controller
+  aims for, created whenever the payload carries it as a number — absent on a pool with no
+  heating. It writes through `api.set_param()`. It is **degrees
+  Celsius directly, sent as a float**, so nothing converts in either direction — and being
+  a float format it escapes the integer rounding `SetParam` applies to the `c`/`C`/`v`
+  parameters. The controller keeps it to **a tenth of a degree**, which `SETPOINT_STEP`
+  reflects; `async_set_native_value()` also rounds before sending and holds the rounded
+  value, since a `number.set_value` service call can pass any float past the entity's step
+  and showing 26.35 while the pool holds 26.4 would be a discrepancy this entity invented.
+  `SETPOINT_MIN`/`MAX` stay **provisional** — the firmware's own limits were never
+  supplied, and `params.EauMin`/`EauMax` are the water probe's alarm thresholds, not the
+  setpoint's bounds, so they are deliberately not used. They constrain the control only; a
+  reading outside them still displays.
+- Also in `number.py`: the filtration speed, the one out whose `status` is a speed index. It is
   created only when the pool declares `PumpMaxSpeed > 1`, so pools with no speed control
   keep just their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`, resolved by
   `klereo_pump_max_speed()` which the filtration's own rules share. Values 0, 1
   and 3 have been seen and **0 is a real answer, not a missing one** — only an absent or
   non-integer field falls back to the protocol's 7. The switch over the same out stays,
   unchanged, so existing automations keep working — turning it on sends speed 1.
+- **The water-treatment outs ship disabled.** `OUTS_DISABLED_BY_DEFAULT` is
+  `TREATMENT_OUT_INDEXES` — the pH corrector (2), the disinfectant (3), the flocculant (8)
+  and hybrid chlorine (15), the same four `SetOut` reserves to level 16 — and
+  both the switch and the mode select set `entity_registry_enabled_default` from it. Not
+  because they matter less: a stray tap on a dashboard toggle there puts chemicals in the
+  pool, or pulls a regulated output out of regulation. Lighting, the auxiliaries, the
+  heating and the filtration carry no such cost and stay enabled — which is also why the
+  filtration speed entity is untouched, being on out 1. As with the water volume sensor,
+  **the flag is read only at first registration**, so this changes what a new install
+  starts with and leaves existing ones alone.
 - `select.py` — one entity per writable out, its drive mode. Offered exactly where
   `klereo_out_mode_states()` answers — so every out has one, save a heating or
   disinfectant whose kind the payload does not name. The options are resolved **once, in `__init__`**: `HeaterMode`, `TraitMode` and
@@ -183,7 +243,20 @@ The rest of the code depends on these keys:
   `PressureMin/Max`) — **usually**: one pool's pressure probe bounds 200..2400 against a
   `PressureMax` of 1100, so this is a hint, not an invariant. `params.HeaterMode` and
   `params.TraitMode` are read too, and decide what the heating and the disinfectant may be
-  set to — see the writes section below. It is how `PROBE_TYPES` was
+  set to — see the writes section below. `params.VolumeEau`, the pool's water volume in
+  m³, and the four `_TotalTime` counters are read as well and published as diagnostic
+  sensors; all are **read-only**, having no `SetOut` equivalent and describing how the pool
+  is built or what it has done rather than anything Home Assistant may command. The
+  counters are **in seconds** and are published in hours by `_params_hours()` — a pool
+  running since spring reports a number like 3283200, which nobody reads — with
+  `device_class` `duration` and `state_class` `total_increasing`, that class absorbing a
+  counter reset without charting a negative spike. `_runtime()` builds the four rows:
+  `Filtration_TotalTime`, `PHMinus_TotalTime`, `ElectroChlore_TotalTime` and
+  `Chauff_TotalTime`, tracking outs 1 to 4. **The labels follow the output's role, not the
+  key's wording** — `ElectroChlore_` counts out 3 whatever the pool is treated with, so
+  naming that sensor after electro-chlorination would be wrong on a bromine or oxygen
+  pool. A key spelled differently on some firmware costs nothing: the getter returns
+  `None` and no entity is created. It is how `PROBE_TYPES` was
   first derived, before the firmware enum confirmed it. **`PressionCapteur` is unreliable**: a pool was seen with
   `PressionCapteur: -1` while carrying a working type 6 probe, though another points at
   its pressure probe correctly — so trust `probes[].type`, not these pointers. Probe dicts are not uniform either — flow probes carry `DebitK`/
@@ -208,13 +281,112 @@ The rest of the code depends on these keys:
   confirmed it is *not* the firmware's `e_OutTypes` and has yet to establish what it does
   encode, so don't map it against that enum; like `mode`, it stays an attribute only.
 
-Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode` and `newState`.
+`SetParam.php` writes a `params` entry, and `api.set_param()` sends `poolID`, `paramID`
+(the `params` key itself), `newValue` and a `label`. `comMode` is omitted, the endpoint
+defaulting it to 0; the `label` replaces the server's own, trading the parameter's offset
+and length for provenance in the command log.
+
+**It queues rather than applies.** The endpoint inserts a UDP command for the pod and
+answers one `{cmdID, poolID}` per matched system, so `GetPoolDetails` keeps reporting the
+old value until the pod fetches it. A success means *accepted*, never *applied*.
+
+`CommandStatus.php` turns that `cmdID` into an answer. It takes an optional `cmdID`,
+scopes its query to the issuing user, needs no access level, and returns **at once** — one
+query, no loop. Its `status` is the pod server's `CommandSender.h` enum, in
+`COMMAND_STATUS`: 0 and 1 are still pending, **9 alone is success**, and 10 upwards are
+named failures — the pod refusing on access, not being connected, needing a firmware
+update. Its `response` is always a **list**; with a `cmdID` it holds that one row, and
+**without one the account's thirty most recent commands**, which is why the integration
+always sends it. An unknown or foreign `cmdID` comes back as an empty list rather than an
+error, so `command_status()` answers `None` instead of raising. Its `startTime` and
+`updateTime` are MySQL DATETIME strings, where `WaitCommand` converts the same columns to
+epoch seconds; nothing reads them.
+
+`WaitCommand.php` does the same job in a single call and is deliberately **not** used. It
+blocks for just under 25 s while polling its own row 500 times at 50 ms, holding a PHP
+worker and a MySQL connection throughout — a cost that lands on the Klereo server once per
+command and multiplies by every Home Assistant driving a pool. It would also pin an
+executor thread here for the duration. Polling `CommandStatus` on `COMMAND_POLL_DELAYS`
+(1, 2, 3, 5, 5, 5, 5 — seven requests over 26 s) costs the server seven short queries
+instead, and sleeping between them frees the thread.
+
+`KlereoCommandMixin` in `entity.py` follows every write, as a task the **config entry**
+owns — `entry.async_create_background_task()`, which cancels on unload. `hass` owning it
+instead left a reload or a shutdown mid-confirmation free to write state onto an entity
+that no longer existed, and to refresh a coordinator whose api had been dropped from
+`hass.data`. **One confirmation per entity**, too: a second write cancels the first,
+whose verdict concerns a value nobody is showing any more and whose `_clear_optimistic()`
+would wipe the one the new write just set — two quick presses on a switch did exactly
+that. `async_will_remove_from_hass()` cancels as well, for an entity that goes on its own.
+
+**The wait never blocks the service call** — 26 s on a switch press would be unusable — so it runs as a background
+task while the entity returns at once. That also removed the optimistic value's flicker:
+a write no longer refreshes immediately, which used to replace the optimistic value with a
+payload the pod had not updated yet. It refreshes once the command has landed. On a
+failure the optimistic value is dropped and the reason logged; on a command the server
+does not know, an unreadable status or the delays running out it is dropped too, since the
+command may well have been applied and only the confirmation lost — the payload is left to
+answer.
+
+Two of its refusals are worth knowing. The server rejects the literal `NaN`, so
+`set_param()` refuses non-numbers and non-finite values before the round trip. And
+**authorization is per account and per parameter**, from `MySystems.access`: below
+`ACCESS_COMMAND_MIN` (10) the server refuses every command, and below `ACCESS_PARAM_ANY`
+(16) it accepts only the parameters on an allowed list that is not published — so a pool
+owner may get `Vous n'êtes pas autorisé à faire cette action` on a parameter a
+professional account writes fine.
+
+`entity.klereo_access()` reads that level from the payload and
+`entity.klereo_may_command()` turns it into a yes or no, which the setpoint checks before
+writing: below 10 it raises `account_read_only`, naming the level, rather than making a
+round trip that comes back in French with no hint that the account is the reason. **An
+absent `access` means unknown, never refused** — `GetIndex` is documented as carrying it
+but `GetPoolDetails` has not been confirmed against a capture, and a payload without the
+field must not lock anyone out of their own pool. A non-integer reads the same way. The 16
+threshold is deliberately *not* enforced locally: without the allowed list, only the
+server can say, so that refusal still travels.
+
+`SetOut.php` gates on the same field with the same two thresholds, and its source settles
+the second one where `SetParam`'s could not: below 16 it refuses **exactly
+`TREATMENT_OUT_INDEXES`** — the pH corrector, the disinfectant, the flocculant and hybrid
+chlorine — and allows every other out from level 10. `entity.klereo_out_refusal()` returns
+the translation key for that, `account_read_only` or `out_needs_full_access`, and the
+switch, the mode select and the filtration speed all check it before writing.
+
+So one list answers two questions — which controls ship disabled, and which the server
+reserves — and `OUTS_DISABLED_BY_DEFAULT` is now that same constant rather than a second
+copy of it. They coincide because they are one idea: the outputs that put chemicals in the
+water.
+
+**No error text either endpoint can produce matches `AUTH_HINTS`**, so a refusal that does
+reach the server surfaces as a plain `KlereoError` instead of triggering a JWT renewal and
+the reauth flow. All fourteen are pinned by a test, `GENERIC_ERROR` — *"Désolé, le service
+n'est pas disponible pour le moment"* — included. That check matters more than it looks: a
+false positive there would have the integration renew its token, replay, and then ask the
+user for credentials over a problem that has nothing to do with them. Any new hint added
+to `AUTH_HINTS` has to be run past that list.
+
+Writes to an out go through `SetOut.php` with `poolID`, `outIdx`, `newMode` and `newState`.
 `newState` takes the same encoding as `status` above — so turning the filtration on
 sends speed 1, and speeds 2-7 are reachable but not exposed by a plain switch. Because a write is not reflected in coordinator data until the next poll,
 `KlereoOut` keeps an optimistic `self._optimistic_state` (True/False/None) that `is_on`
 prefers over `out['status']`. It is cleared in `_handle_coordinator_update()`, so fresh
 server data always wins; a write also fires `coordinator.async_request_refresh()` so that
 handover happens in seconds rather than at the next 300 s poll.
+
+`SetOut.php` also **silently rewrites one combination**: Manuel with `newState` 1 on outs
+2, 3, 4 or 8 is turned into `newState` 0 and queued anyway, the server appending `!` to
+the command's label. The comment there reads *"Manuel ON not allowed for
+(pH-Des-Chauf-Floc)"*. That is the same rule the codeowner gave for those four outputs,
+arrived at independently, and `OUT_MODE_STATES` already refuses it client-side — so the
+integration never sends it. Were that refusal ever removed, the pool would quietly stop
+the output instead of starting it.
+
+Two smaller things from the same source. `comMode` defaults to **1** on `SetOut` and **0**
+on `SetParam`; neither is sent, so both take their default. And the server's own
+`$RegOutNames` and `$ModeNames` match `OUT_LABELS` and `OUT_MODES` slot for slot,
+confirming mode 5 as *Choc* and naming two the integration has no rules for, 7
+*Non config.* and 9 *Capteur*.
 
 `newMode` is an out's drive mode, named in `OUT_MODES` (0 Manuel, 1 Plages horaires,
 2 Minuterie, 3 Régulé, 4 Synchronisé, 6 Maintenance, 8 Impulsion). **It used to be
@@ -349,7 +521,8 @@ list are reserved and must be left alone where an out already carries one.
 
 Same `{"status": "ok", "response": [...]}` envelope, one entry per system the account can
 see, carrying `idSystem` and `poolNickname` plus a summary of the system (`probes`,
-`outsmodes`, `pin`, `compta`, `proID`, `suspended`, `access`). `list_pools()` keeps only
+`outsmodes`, `pin`, `compta`, `proID`, `suspended`, `access` — the level the writes
+section above turns into a permission). `list_pools()` keeps only
 the id and the name. `suspended` is deliberately *not* filtered on — the codeowner's call:
 a suspended system stays in the picker and fails later at `GetPoolDetails` with a clear
 message, rather than vanishing with no explanation.

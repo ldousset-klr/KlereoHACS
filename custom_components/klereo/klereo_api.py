@@ -184,6 +184,90 @@ class KlereoAPI:
         LOGGER.info(f"rep={rep}")
         return rep
 
+    def set_param(self, paramID, value, label=None):
+        """Queue a parameter write. `paramID` is the params[] key, e.g. ConsigneEau.
+
+        **SetParam does not apply the value.** It inserts a UDP command into the
+        server's queue for the pod and answers one {cmdID, poolID} per matched
+        system, so the new value only reaches GetPoolDetails once the pod has
+        fetched and applied it. A success here means *accepted*, never *applied*.
+
+        `comMode` is deliberately omitted: the endpoint defaults it to 0.
+
+        The server rejects the literal "NaN", and packs the value with the
+        format its parameter table declares — rounding to an integer for the
+        c/C/v formats. So a fractional value may come back rounded on a
+        parameter declared as an integer, and what scale it is on is the
+        table's business, not this method's: the caller sends the same units it
+        read. ConsigneEau is a float in degrees Celsius and escapes that
+        rounding; a parameter whose format is unknown should not assume it does.
+        """
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise KlereoError(f"SetParam {paramID}: {value!r} is not a number")
+        if value != value or value in (float("inf"), float("-inf")):
+            # NaN and the infinities: the server rejects "NaN" by name, and the
+            # rest would pack into nonsense. Refuse before the round trip.
+            raise KlereoError(f"SetParam {paramID}: {value!r} is not finite")
+        if isinstance(value, float) and value.is_integer():
+            # "28" rather than "28.0": the server packs what it is given.
+            value = int(value)
+        payload = {
+            'poolID': self.poolid,
+            'paramID': paramID,
+            'newValue': value,
+        }
+        # The server builds its own label when none is sent, carrying the
+        # parameter's offset and length. Ours trades those internals for
+        # provenance: the command log then says who asked for the change.
+        payload['label'] = label or f"Home Assistant: {paramID}={value}"
+        LOGGER.info(f"SetParam #{self.poolid} {paramID}={value}")
+        rep = self._post("SetParam.php", payload)
+        LOGGER.info(f"rep={rep}")
+        return rep
+
+    def command_status(self, cmd_id):
+        """Where a queued command has got to, or None if the server has no such row.
+
+        CommandStatus answers at once — one query, no loop — so the caller sets
+        its own cadence rather than holding a request open. Its `response` is
+        always a **list**, unlike WaitCommand's single object: with a cmdID it
+        holds that one row, and without one the account's thirty most recent
+        commands, which is not something this integration asks for.
+
+        An unknown cmdID, or one belonging to another account, comes back as an
+        empty list rather than an error — hence None rather than a raise.
+
+        The row carries cmdID, status, startTime, updateTime and detail. Note
+        its timestamps are MySQL DATETIME strings here where WaitCommand
+        converts them to epoch seconds; nothing reads them either way.
+        """
+        rep = self._post("CommandStatus.php", {'cmdID': cmd_id})
+        rows = self._unwrap(rep, "CommandStatus.php")
+        if not isinstance(rows, list):
+            raise KlereoError(
+                f"CommandStatus.php returned {type(rows).__name__}, not a list")
+        for row in rows:
+            if isinstance(row, dict) and row.get("cmdID") in (cmd_id, str(cmd_id)):
+                return row
+        return None
+
+    @staticmethod
+    def command_id(reply):
+        """The cmdID a SetOut/SetParam reply carries, or None if it carries none.
+
+        Those answer one {cmdID, poolID} per matched system. Every call here
+        names a single pool, so there is exactly one — but a reply without it
+        is not worth raising over: the command was accepted either way, and
+        only the confirmation is lost.
+        """
+        if not isinstance(reply, dict):
+            return None
+        rows = reply.get("response")
+        if not isinstance(rows, list) or not rows:
+            return None
+        cmd_id = rows[0].get("cmdID") if isinstance(rows[0], dict) else None
+        return cmd_id if isinstance(cmd_id, int) else None
+
     def turn_on_device(self, outIdx, mode):
         return self.set_out(outIdx, 1, mode)
 

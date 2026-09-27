@@ -15,6 +15,39 @@ UPDATE_INTERVAL = 300
 HA_VERSION = "100-HA"
 HTTP_TIMEOUT = 30
 
+# How long to keep asking CommandStatus whether a queued command has landed,
+# and how long to wait between asks. Seven requests over 26 s.
+#
+# CommandStatus is a plain query — no loop, no blocking — so the cadence is
+# ours to choose, and choosing it is the point. WaitCommand.php would do the
+# same job in one call, but it holds a PHP worker and a MySQL connection for
+# 25 s while polling its own row 500 times at 50 ms. That cost lands on the
+# Klereo server once per command and multiplies by every Home Assistant
+# driving a pool; and on this side it would pin an executor thread for the
+# duration, where sleeping between short requests frees it.
+COMMAND_POLL_DELAYS = (1, 2, 3, 5, 5, 5, 5)
+
+# Commands.status, from the pod server's CommandSender.h.
+#
+# WaitCommand loops while status < 9, so **9 and above are terminal — but only
+# 9 is success**. Anything from 10 up is a named failure, and 0/1 mean the
+# endpoint gave up waiting rather than that anything went wrong.
+COMMAND_DONE = 9
+COMMAND_STATUS = {
+    0:  "queued, not yet sent to the pod",       # COMMAND_WAIT
+    1:  "sent to the pod, awaiting its answer",  # COMMAND_SENT
+    9:  "applied",                               # COMMAND_DONE
+    10: "the pod reported an error",             # COMMAND_ERROR
+    11: "the pod rejected a parameter",          # COMMAND_BADPARAM
+    12: "the pod did not recognise the command", # COMMAND_UNKNOWN
+    13: "the pod refused it: access",            # COMMAND_BADACCESS
+    15: "the pod never answered",                # COMMAND_TIMEOUT
+    16: "aborted",                               # COMMAND_ABORT
+    17: "the pod is not connected",              # COMMAND_NOTCONNECTED
+    18: "no service",                            # COMMAND_NOSERVICE
+    19: "the pod needs a firmware update",       # COMMAND_UPDATEREQ
+}
+
 # Value reported by a probe that is absent or unreadable (seen on an air probe
 # whose filteredTime is null). Thresholds use -2000 as the same kind of marker.
 PROBE_INVALID = -1000
@@ -407,6 +440,33 @@ OUT_MODE_STATES = {
 # depends on it: the heating and the disinfectant need their params key to name
 # a kind, and an out absent from the payload has no entities at all.
 
+# The four outs that dose the water: pH corrector (2), disinfectant (3),
+# flocculant (8) and hybrid chlorine (15).
+#
+# Klereo privileges exactly these: SetOut refuses them below access level 16
+# while allowing every other out from level 10. So the same list answers two
+# questions — which controls ship disabled, and which the server will refuse to
+# an ordinary account — and they are one list because they are one idea: these
+# are the outputs that put chemicals in the water.
+TREATMENT_OUT_INDEXES = frozenset({2, 3, 8, 15})
+
+# Outs whose controls ship disabled in the entity registry. They still appear
+# under "Disabled entities" on the device page and are one click from being
+# enabled.
+#
+# The reason is not that they are less useful but that a stray tap on a
+# dashboard toggle there puts chemicals in the pool, or pulls a regulated
+# output out of regulation. Lighting, the auxiliaries, the heating and the
+# filtration carry no such cost, so they stay enabled.
+#
+# This covers the switch and the mode select — the things that *write*. Probes,
+# the diagnostic sensors and the filtration speed are untouched, the speed
+# being on out 1, which stays enabled.
+#
+# **Read only when an entity is first registered**, so this changes what a new
+# install starts with and leaves existing ones exactly as they are.
+OUTS_DISABLED_BY_DEFAULT = TREATMENT_OUT_INDEXES
+
 # Icons, only where Home Assistant has no default of its own. Probe types that
 # carry a device_class (temperature, ph, pressure) are left alone: HA already
 # picks a fitting icon and changing it would also lose the state-aware variants.
@@ -444,6 +504,38 @@ OUT_ICONS = {
     15: "mdi:flask",
 }
 
+# MySystems.access — what the account may do with this pool. Both write
+# endpoints gate on it, with the same two thresholds:
+#
+#   < 10   SetOut and SetParam refuse everything.
+#   < 16   SetOut refuses the TREATMENT_OUT_INDEXES outs and allows the rest;
+#          SetParam accepts only the parameters on an allowed list that is not
+#          published, so that one is left to the server to answer.
+#
+# An absent access reads as unknown, never as refused: a payload that does not
+# carry it must not lock anyone out of their own pool.
+ACCESS_COMMAND_MIN = 10
+ACCESS_PARAM_ANY = 16
+
+# The params[] key, which is also the paramID SetParam takes. The codeowner
+# confirmed it is degrees Celsius directly, sent as a float — so it is not one
+# of the formats SetParam rounds to an integer, and nothing here converts.
+SETPOINT_PARAM = "ConsigneEau"
+
+# The controller stores the setpoint to a tenth of a degree, which is what the
+# step reflects: offering anything finer would show a precision the pool does
+# not keep.
+SETPOINT_STEP = 0.1
+
+# **Provisional**: the firmware's own limits have not been supplied.
+# params.EauMin/EauMax exist but are the water probe's alarm thresholds, which
+# is not the same thing, so they are not used here. These constrain the control
+# only — the reading is published as the payload gives it, so a value outside
+# this range still shows correctly.
+SETPOINT_MIN = 0.0
+SETPOINT_MAX = 40.0
+
 ICON_FILTRATION_SPEED = "mdi:speedometer"
 ICON_OUT_MODE = "mdi:tune"
 ICON_INFO = "mdi:identifier"
+ICON_WATER_VOLUME = "mdi:pool"

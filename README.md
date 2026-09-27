@@ -15,10 +15,22 @@ One device per pool, named after its Klereo nickname, carrying:
   its type actually calls for, taken from the controller's own sensor table.
 - **A switch per output** — lighting, filtration, pH corrector, disinfectant, heating and
   the auxiliaries.
+- **The water temperature setpoint**, on pools that have one, readable and settable in
+  °C to a tenth of a degree — the resolution the controller keeps. The controller queues
+  the change rather than applying it on the spot, so the integration follows it up and
+  only refreshes once the pool has really taken it. An account with view-only rights on
+  the pool is told so when it tries, instead of getting an untranslated refusal from the
+  server.
 - **The filtration speed**, on pools whose pump has more than one. Settable while the
   filtration is in *Manuel*; in the other modes the schedule or the regulator owns the
   pump and the control says so rather than sending a value the controller would read as
   something else.
+- **The controls for the outputs that dose the water — the pH corrector, the disinfectant,
+  the flocculant and hybrid chlorine — ship disabled**, under *Disabled entities* on the
+  device page, one click from being enabled. A stray tap on a dashboard toggle there puts
+  chemicals in the pool. Lighting, the auxiliaries, the heating and the filtration are
+  enabled as usual. Upgrading changes nothing: the setting only applies to entities Home
+  Assistant registers for the first time.
 - **A mode selector** on each output you can drive, offering what that particular output
   accepts: *Manuel*, *Plages horaires*, *Minuterie*, *Synchronisé*, *Maintenance* and
   *Impulsion* on lighting and the auxiliaries; *Manuel*, *Plages horaires*, *Régulé* and
@@ -31,7 +43,14 @@ One device per pool, named after its Klereo nickname, carrying:
   output doing whatever it was doing — including the filtration, which keeps its speed — except
   *Manuel* on the dosing pumps, the disinfectant and the heating, which stop them, the
   controller allowing nothing else there.
-- **Diagnostic sensors** for the registration PIN and the device slot on the pod.
+- **Diagnostic sensors** for the registration PIN, the device slot on the pod, the pool's
+  water volume in m³, and the cumulative running time of the filtration, the pH corrector,
+  the disinfectant and the heating. All are read-only. The controller counts those runtimes
+  in seconds; they are published **in hours**, so a pump running since spring reads
+  `912 h` rather than `3283200`. A counter the controller does not report — the heating on
+  a pool with none — simply has no sensor. The water volume ships **disabled**, being a
+  fixed property of the pool rather than something to record every five minutes — enable it
+  on the device page if you want it.
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
 back to the controller's own name for that slot — *Température eau*, *Capteur pH*,
@@ -62,8 +81,19 @@ The *Server* field on the first screen exists for testing against another Klereo
 Leave it alone unless you know why you are changing it — **your credentials are sent to
 whatever address it holds**.
 
+Writing anything — a switch, a mode, a speed, the setpoint — is **queued rather than
+applied**: Klereo hands the command to the pool controller, which picks it up a moment
+later. The integration follows each one to its conclusion in the background, so a control
+holds the value you asked for until the pool confirms it, and reverts with the reason in
+the log if the controller refuses — it is not connected, it needs a firmware update, the
+account lacks the rights. Nothing waits on screen while that happens.
+
 ## Current limitations
 
+- **Klereo reserves four outputs to a privileged account.** The pH corrector, the
+  disinfectant, the flocculant and hybrid chlorine need access level 16 on the pool; every
+  other output works from level 10. Below that the integration says so when you try,
+  instead of passing on an untranslated refusal from the server.
 - **The heating and the disinfectant cannot be driven when the controller does not say
   what the pool is equipped with** — no heating or no treatment, or a `HeaterMode` or
   `TraitMode` the integration does not recognise. They report their state and refuse to be
@@ -125,6 +155,8 @@ documented; treat a 401 or 403 as "renew and retry once".
 | `GetIndex.php` | none | every system the account can see |
 | `GetPoolDetails.php` | `poolID`, `lang` | one system in full |
 | `SetOut.php` | `poolID`, `outIdx`, `newMode`, `newState` | acknowledgement |
+| `SetParam.php` | `poolID`, `paramID`, `newValue`, optional `label` and `comMode` | one `{cmdID, poolID}` per system |
+| `CommandStatus.php` | optional `cmdID` | that command's row, or the account's 30 most recent commands |
 
 ### Response envelope
 
@@ -284,10 +316,40 @@ directions, so treat it as unconfirmed.
 A write is not reflected in `GetPoolDetails.php` until the controller has polled, so expect
 a lag of seconds before a read confirms it.
 
+## Development
+
+The repository carries a pytest suite under [`tests/`](tests/). It runs the component
+against a stub Home Assistant, so it needs **pytest and nothing else** — no Home
+Assistant install, no network, no pool:
+
+```bash
+pip install pytest
+python -m pytest
+```
+
+[`tests/README.md`](tests/README.md) says what each suite covers. GitHub Actions runs it
+on Python 3.12 and 3.13 alongside hassfest and the HACS validator, on every push and
+pull request.
+
+It stubs Home Assistant out, so it cannot catch a break in entity registration, the
+config flow's UI or the real HTTP calls. Those still want a real install.
+
 ## Todo
 
-- Expose more pool information
-- Writing the outputs that are still read-only, and a mode selector on them
+Writing the outputs and a mode selector on them are done — every output now carries its
+rules, and only a heating or disinfectant whose controller does not say what it drives
+stays read-only. What is left:
+
+- **An options flow**, so the server, the credentials and the poll interval can be
+  changed without removing and re-adding the pool.
+- **A configurable poll interval.** It is fixed at 5 minutes.
+- **The setpoint's real limits.** The control is bounded at 0–40 °C, which is a
+  placeholder: the controller's own limits were never supplied, and `EauMin`/`EauMax` are
+  the water probe's alarm thresholds, not the setpoint's. A reading outside the range
+  still displays.
+- **What `outs[].type` encodes.** It is not the output's role, and not the firmware's
+  `e_OutTypes` either, so it is published as an attribute and nothing reads it.
+- **More translations.** French and English only.
 
 ## Disclaimer
 

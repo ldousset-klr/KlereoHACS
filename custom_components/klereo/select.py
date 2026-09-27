@@ -3,9 +3,11 @@ from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ICON_OUT_MODE, OUT_LABELS
-from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
-                     klereo_out_mode_name, klereo_out_mode_states)
+from .const import (DOMAIN, ICON_OUT_MODE, OUT_LABELS,
+                    OUTS_DISABLED_BY_DEFAULT)
+from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
+                     klereo_device_info, klereo_io_names, klereo_out_mode_name,
+                     klereo_out_mode_states, klereo_out_refusal)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -33,7 +35,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     async_add_entities(selects)
 
 
-class KlereoOutMode(CoordinatorEntity, SelectEntity):
+class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
     """An out's drive mode, read from `mode` and written as SetOut's newMode.
 
     The write carries OUT_STATE_KEEP as newState wherever the target mode
@@ -57,6 +59,10 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
         base = (klereo_name or OUT_LABELS.get(self._index)
                 or f"klereo{poolid}out{self._index}")
         self._name = f"{base} mode"
+        # The water-treatment outs ship disabled: see OUTS_DISABLED_BY_DEFAULT.
+        self._attr_entity_registry_enabled_default = (
+            self._index not in OUTS_DISABLED_BY_DEFAULT
+        )
         # Offered in the firmware's own order, under this out's own wording.
         # Resolved once here: the heating output's list depends on the payload,
         # and HeaterMode is a rewiring, not something that changes under a poll.
@@ -69,6 +75,9 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
         }
         self._attr_options = list(self._modes)
         # Optimistic value held between a write and the next successful poll.
+        self._optimistic_mode = None
+
+    def _clear_optimistic(self):
         self._optimistic_mode = None
 
     @callback
@@ -148,13 +157,23 @@ class KlereoOutMode(CoordinatorEntity, SelectEntity):
         )
 
     async def async_select_option(self, option: str) -> None:
+        refusal = klereo_out_refusal(self.coordinator.data, self._index)
+        if refusal is not None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=refusal,
+                translation_placeholders={
+                    "name": self._name,
+                    "access": str(klereo_access(self.coordinator.data)),
+                },
+            )
         mode = self._modes[option]
         state = self._state_for(mode)
         LOGGER.debug("Setting mode of #%s out%s to %s (%s), state=%s",
                      self._poolid, self._index, mode, option, state)
-        await self.hass.async_add_executor_job(
+        reply = await self.hass.async_add_executor_job(
             self._api.set_out, self._index, state, mode
         )
         self._optimistic_mode = option
         self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        self._follow_command(reply, f"{self._name} -> {option}")
