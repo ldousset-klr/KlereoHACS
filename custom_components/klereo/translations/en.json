@@ -55,9 +55,6 @@
     },
     "out_speed_not_settable": {
       "message": "{name} cannot be set while the output is in {mode}: only Manuel takes a speed. Change the mode first."
-    },
-    "param_read_only": {
-      "message": "{name} cannot be changed from Home Assistant yet: writing it needs the SetParam call, which the integration does not implement. It reports the controller's value only."
     }
   }
 }

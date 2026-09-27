@@ -5,7 +5,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (DOMAIN, FILTRATION_OUT_INDEX, ICON_FILTRATION_SPEED,
                     MAX_PUMP_SPEED, OUT_LABELS, SETPOINT_MAX, SETPOINT_MIN,
-                    SETPOINT_STEP)
+                    SETPOINT_PARAM, SETPOINT_STEP)
 from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
                      klereo_out_mode_name, klereo_out_mode_states,
                      klereo_pump_max_speed)
@@ -30,7 +30,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     # The water temperature setpoint, params.ConsigneEau. Absent on a pool with
     # no heating, and on anything that is not a pool at all.
-    setpoint = (pool_data.get("params") or {}).get("ConsigneEau")
+    setpoint = (pool_data.get("params") or {}).get(SETPOINT_PARAM)
     if isinstance(setpoint, (int, float)) and not isinstance(setpoint, bool):
         LOGGER.info("Adding water setpoint for #%s (currently %s)", poolid, setpoint)
         numbers.append(KlereoWaterSetpoint(api, coordinator, poolid, device_info))
@@ -157,9 +157,11 @@ class KlereoWaterSetpoint(CoordinatorEntity, NumberEntity):
     first would mean changing the entity's domain later, orphaning its history.
     The filtration speed took the same route and it worked.
 
-    Writing needs SetParam, whose field names the codeowner has yet to supply.
-    Until then async_set_native_value raises rather than guessing at a request
-    that would change what the pool heats to.
+    Writing goes through SetParam, which **queues** the change for the pod
+    rather than applying it: the payload keeps reporting the old value until
+    the pod has fetched the command. The optimistic value bridges that gap the
+    way KlereoOut does, and is dropped on the next poll, so a setpoint that has
+    not reached the pod yet may show the old value again for a moment.
     """
 
     _attr_device_class = "temperature"
@@ -177,6 +179,15 @@ class KlereoWaterSetpoint(CoordinatorEntity, NumberEntity):
         # unique_id follows _key and must outlive any relabelling.
         self._key = f"klereo{poolid}watersetpoint"
         self._name = "Water setpoint"
+        # Held between a write and the next successful poll.
+        self._optimistic_value = None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        # Fresh data won, whether or not it yet carries our value: a change
+        # made on the front panel or in the mobile app must show through.
+        self._optimistic_value = None
+        super()._handle_coordinator_update()
 
     @property
     def name(self):
@@ -188,14 +199,18 @@ class KlereoWaterSetpoint(CoordinatorEntity, NumberEntity):
 
     @property
     def native_value(self):
-        # Published exactly as the payload gives it. If the controller turns
-        # out to count tenths of a degree, that is a conversion to add once,
-        # not to guess at now.
-        return (self.coordinator.data.get("params") or {}).get("ConsigneEau")
+        # Published exactly as the payload gives it, and written back on the
+        # same scale, so the round trip holds whatever units the controller's
+        # parameter table is on.
+        if self._optimistic_value is not None:
+            return self._optimistic_value
+        return (self.coordinator.data.get("params") or {}).get(SETPOINT_PARAM)
 
     async def async_set_native_value(self, value: float) -> None:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="param_read_only",
-            translation_placeholders={"name": self._name},
+        LOGGER.debug("Setting water setpoint of #%s to %s", self._poolid, value)
+        await self.hass.async_add_executor_job(
+            self._api.set_param, SETPOINT_PARAM, value
         )
+        self._optimistic_value = value
+        self.async_write_ha_state()
+        await self.coordinator.async_request_refresh()

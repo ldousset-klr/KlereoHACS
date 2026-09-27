@@ -55,9 +55,6 @@
     },
     "out_speed_not_settable": {
       "message": "{name} ne peut pas être réglée tant que la sortie est en {mode} : seul le mode Manuel accepte une vitesse. Change d'abord le mode."
-    },
-    "param_read_only": {
-      "message": "{name} n'est pas encore modifiable depuis Home Assistant : l'écriture passe par l'appel SetParam, que l'intégration n'implémente pas. Elle affiche seulement la valeur du coffret."
     }
   }
 }

@@ -122,14 +122,10 @@ credential disclosure, not just a connection failure.
 - `number.py` — two entities, added independently: a pool may have either, both or
   neither. **The water setpoint** is `params.ConsigneEau`, the temperature the controller
   aims for, created whenever the payload carries it as a number — absent on a pool with no
-  heating. It is a `number` from the start although it **refuses to be set**: writing a
-  param needs `SetParam`, whose field names the codeowner has yet to supply, and
-  `async_set_native_value` raises `param_read_only` rather than guessing at a request that
-  would change what the pool heats to. Publishing it as a sensor first and switching later
-  would change the entity's domain and orphan its history, which is the same reasoning
-  that put the filtration speed in this platform before it could be written. The value is
-  published **exactly as the payload gives it**: if the controller turns out to count
-  tenths of a degree that is one conversion to add, not to guess at. `SETPOINT_MIN`/`MAX`/
+  heating. It writes through `api.set_param()`. The value is
+  published **exactly as the payload gives it** and written back on the same scale, so
+  the round trip holds whatever units the controller's parameter table is on — nothing
+  here needs to know. `SETPOINT_MIN`/`MAX`/
   `STEP` are **provisional** — the firmware's own limits were never supplied, and
   `params.EauMin`/`EauMax` are the water probe's alarm thresholds, not the setpoint's
   bounds, so they are deliberately not used. They constrain the control only; a reading
@@ -257,7 +253,27 @@ The rest of the code depends on these keys:
   confirmed it is *not* the firmware's `e_OutTypes` and has yet to establish what it does
   encode, so don't map it against that enum; like `mode`, it stays an attribute only.
 
-Writes go through `SetOut.php` with `poolID`, `outIdx`, `newMode` and `newState`.
+`SetParam.php` writes a `params` entry, and `api.set_param()` sends `poolID`, `paramID`
+(the `params` key itself), `newValue` and a `label`. `comMode` is omitted, the endpoint
+defaulting it to 0; the `label` replaces the server's own, trading the parameter's offset
+and length for provenance in the command log.
+
+**It queues rather than applies.** The endpoint inserts a UDP command for the pod and
+answers one `{cmdID, poolID}` per matched system, so `GetPoolDetails` keeps reporting the
+old value until the pod fetches it. A success means *accepted*, never *applied* — which is
+why the setpoint carries an optimistic value, and why that value may briefly give way to
+the old one on the next poll.
+
+Two of its refusals are worth knowing. The server rejects the literal `NaN`, so
+`set_param()` refuses non-numbers and non-finite values before the round trip. And
+**authorization is per parameter**: an account below access level 16 may only write the
+parameters on the server's own allowed list, which is not published — a pool owner may
+therefore get `Vous n'êtes pas autorisé à faire cette action` on a parameter a
+professional account writes fine. None of `SetParam`'s error texts match `AUTH_HINTS`, so
+such a refusal surfaces as a plain `KlereoError` instead of triggering a JWT renewal and
+the reauth flow; that is checked by a test, not assumed.
+
+Writes to an out go through `SetOut.php` with `poolID`, `outIdx`, `newMode` and `newState`.
 `newState` takes the same encoding as `status` above — so turning the filtration on
 sends speed 1, and speeds 2-7 are reachable but not exposed by a plain switch. Because a write is not reflected in coordinator data until the next poll,
 `KlereoOut` keeps an optimistic `self._optimistic_state` (True/False/None) that `is_on`

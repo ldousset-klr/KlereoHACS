@@ -467,6 +467,9 @@ OUT_ICONS = {
 # probe's alarm thresholds, which is not the same thing, so they are not used
 # here. These constrain the control only — the reading is published as the
 # payload gives it, so a value outside this range still shows correctly.
+# The params[] key, which is also the paramID SetParam takes.
+SETPOINT_PARAM = "ConsigneEau"
+
 SETPOINT_MIN = 0.0
 SETPOINT_MAX = 40.0
 SETPOINT_STEP = 0.5

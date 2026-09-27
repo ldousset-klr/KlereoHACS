@@ -184,6 +184,45 @@ class KlereoAPI:
         LOGGER.info(f"rep={rep}")
         return rep
 
+    def set_param(self, paramID, value, label=None):
+        """Queue a parameter write. `paramID` is the params[] key, e.g. ConsigneEau.
+
+        **SetParam does not apply the value.** It inserts a UDP command into the
+        server's queue for the pod and answers one {cmdID, poolID} per matched
+        system, so the new value only reaches GetPoolDetails once the pod has
+        fetched and applied it. A success here means *accepted*, never *applied*.
+
+        `comMode` is deliberately omitted: the endpoint defaults it to 0.
+
+        The server rejects the literal "NaN", and packs the value with the
+        format its parameter table declares — rounding to an integer for the
+        c/C/v formats. So a fractional value may come back rounded, and what
+        scale it is on is the table's business, not this method's: the caller
+        sends the same units it read.
+        """
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise KlereoError(f"SetParam {paramID}: {value!r} is not a number")
+        if value != value or value in (float("inf"), float("-inf")):
+            # NaN and the infinities: the server rejects "NaN" by name, and the
+            # rest would pack into nonsense. Refuse before the round trip.
+            raise KlereoError(f"SetParam {paramID}: {value!r} is not finite")
+        if isinstance(value, float) and value.is_integer():
+            # "28" rather than "28.0": the server packs what it is given.
+            value = int(value)
+        payload = {
+            'poolID': self.poolid,
+            'paramID': paramID,
+            'newValue': value,
+        }
+        # The server builds its own label when none is sent, carrying the
+        # parameter's offset and length. Ours trades those internals for
+        # provenance: the command log then says who asked for the change.
+        payload['label'] = label or f"Home Assistant: {paramID}={value}"
+        LOGGER.info(f"SetParam #{self.poolid} {paramID}={value}")
+        rep = self._post("SetParam.php", payload)
+        LOGGER.info(f"rep={rep}")
+        return rep
+
     def turn_on_device(self, outIdx, mode):
         return self.set_out(outIdx, 1, mode)
 

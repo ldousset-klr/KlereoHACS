@@ -15,9 +15,9 @@ One device per pool, named after its Klereo nickname, carrying:
   its type actually calls for, taken from the controller's own sensor table.
 - **A switch per output** — lighting, filtration, pH corrector, disinfectant, heating and
   the auxiliaries.
-- **The water temperature setpoint**, on pools that have one. It **reports only for now**:
-  changing it needs a Klereo call the integration does not implement yet, and trying says
-  so rather than failing silently.
+- **The water temperature setpoint**, on pools that have one, readable and settable.
+  The controller queues the change rather than applying it on the spot, so the value may
+  show the old reading again for a moment before the new one sticks.
 - **The filtration speed**, on pools whose pump has more than one. Settable while the
   filtration is in *Manuel*; in the other modes the schedule or the regulator owns the
   pump and the control says so rather than sending a value the controller would read as
@@ -141,6 +141,7 @@ documented; treat a 401 or 403 as "renew and retry once".
 | `GetIndex.php` | none | every system the account can see |
 | `GetPoolDetails.php` | `poolID`, `lang` | one system in full |
 | `SetOut.php` | `poolID`, `outIdx`, `newMode`, `newState` | acknowledgement |
+| `SetParam.php` | `poolID`, `paramID`, `newValue`, optional `label` and `comMode` | one `{cmdID, poolID}` per system |
 
 ### Response envelope
 
