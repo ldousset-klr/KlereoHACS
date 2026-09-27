@@ -15,6 +15,9 @@ One device per pool, named after its Klereo nickname, carrying:
   its type actually calls for, taken from the controller's own sensor table.
 - **A switch per output** — lighting, filtration, pH corrector, disinfectant, heating and
   the auxiliaries.
+- **The water temperature setpoint**, on pools that have one. It **reports only for now**:
+  changing it needs a Klereo call the integration does not implement yet, and trying says
+  so rather than failing silently.
 - **The filtration speed**, on pools whose pump has more than one. Settable while the
   filtration is in *Manuel*; in the other modes the schedule or the regulator owns the
   pump and the control says so rather than sending a value the controller would read as

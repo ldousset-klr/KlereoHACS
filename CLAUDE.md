@@ -119,7 +119,22 @@ credential disclosure, not just a connection failure.
   The entry's `unique_id` is the poolID, so a pool can only be configured once;
   `async_setup_entry` backfills it on entries created before that existed. Entry data keeps
   the same three keys, so nothing migrates.
-- `number.py` — the filtration speed, the one out whose `status` is a speed index. It is
+- `number.py` — two entities, added independently: a pool may have either, both or
+  neither. **The water setpoint** is `params.ConsigneEau`, the temperature the controller
+  aims for, created whenever the payload carries it as a number — absent on a pool with no
+  heating. It is a `number` from the start although it **refuses to be set**: writing a
+  param needs `SetParam`, whose field names the codeowner has yet to supply, and
+  `async_set_native_value` raises `param_read_only` rather than guessing at a request that
+  would change what the pool heats to. Publishing it as a sensor first and switching later
+  would change the entity's domain and orphan its history, which is the same reasoning
+  that put the filtration speed in this platform before it could be written. The value is
+  published **exactly as the payload gives it**: if the controller turns out to count
+  tenths of a degree that is one conversion to add, not to guess at. `SETPOINT_MIN`/`MAX`/
+  `STEP` are **provisional** — the firmware's own limits were never supplied, and
+  `params.EauMin`/`EauMax` are the water probe's alarm thresholds, not the setpoint's
+  bounds, so they are deliberately not used. They constrain the control only; a reading
+  outside them still displays.
+- Also in `number.py`: the filtration speed, the one out whose `status` is a speed index. It is
   created only when the pool declares `PumpMaxSpeed > 1`, so pools with no speed control
   keep just their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`, resolved by
   `klereo_pump_max_speed()` which the filtration's own rules share. Values 0, 1
