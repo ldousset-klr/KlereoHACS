@@ -55,6 +55,9 @@
     },
     "out_speed_not_settable": {
       "message": "{name} cannot be set while the output is in {mode}: only Manuel takes a speed. Change the mode first."
+    },
+    "account_read_only": {
+      "message": "{name} cannot be changed: this Klereo account only has access level {access} on the pool, and commands need level 10 or above. Ask whoever administers the pool to raise it."
     }
   }
 }

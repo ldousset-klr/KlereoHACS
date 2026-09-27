@@ -55,6 +55,9 @@
     },
     "out_speed_not_settable": {
       "message": "{name} ne peut pas être réglée tant que la sortie est en {mode} : seul le mode Manuel accepte une vitesse. Change d'abord le mode."
+    },
+    "account_read_only": {
+      "message": "{name} ne peut pas être modifié : ce compte Klereo n'a que le niveau d'accès {access} sur ce bassin, alors qu'une commande demande le niveau 10 ou plus. Demande une élévation à l'administrateur du bassin."
     }
   }
 }

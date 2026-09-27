@@ -2,7 +2,8 @@
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import (DOMAIN, FILTRATION_OUT_INDEX, MAX_PUMP_SPEED,
+from .const import (ACCESS_COMMAND_MIN, DOMAIN, FILTRATION_OUT_INDEX,
+                    MAX_PUMP_SPEED,
                     OUT_MODE_NAME_OVERRIDES, OUT_MODE_STATES, OUT_MODES,
                     PAYLOAD_VARIANTS, filtration_mode_states)
 
@@ -127,3 +128,26 @@ def klereo_out_mode_name(pool_data, index, mode):
     if override and mode in override:
         return override[mode]
     return OUT_MODES.get(mode)
+
+
+def klereo_access(pool_data):
+    """The account's access level on this pool, or None if the payload omits it.
+
+    GetIndex is documented as carrying it; whether GetPoolDetails does has not
+    been confirmed against a capture. None is therefore a real answer and means
+    *unknown*, never *refused*: a payload without the field must not lock
+    anyone out of a pool they own.
+    """
+    access = pool_data.get("access")
+    return access if isinstance(access, int) and not isinstance(access, bool) else None
+
+
+def klereo_may_command(pool_data):
+    """Whether the account may send commands at all, as far as we can tell.
+
+    True when the level is unknown — the server is the authority, and refusing
+    locally on a guess would be worse than a round trip that comes back with a
+    clear message.
+    """
+    access = klereo_access(pool_data)
+    return access is None or access >= ACCESS_COMMAND_MIN

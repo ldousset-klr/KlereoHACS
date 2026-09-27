@@ -6,9 +6,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (DOMAIN, FILTRATION_OUT_INDEX, ICON_FILTRATION_SPEED,
                     MAX_PUMP_SPEED, OUT_LABELS, SETPOINT_MAX, SETPOINT_MIN,
                     SETPOINT_PARAM, SETPOINT_STEP)
-from .entity import (IO_TYPE_OUT, klereo_device_info, klereo_io_names,
-                     klereo_out_mode_name, klereo_out_mode_states,
-                     klereo_pump_max_speed)
+from .entity import (IO_TYPE_OUT, klereo_access, klereo_device_info,
+                     klereo_io_names, klereo_may_command, klereo_out_mode_name,
+                     klereo_out_mode_states, klereo_pump_max_speed)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -207,6 +207,18 @@ class KlereoWaterSetpoint(CoordinatorEntity, NumberEntity):
         return (self.coordinator.data.get("params") or {}).get(SETPOINT_PARAM)
 
     async def async_set_native_value(self, value: float) -> None:
+        pool_data = self.coordinator.data
+        if not klereo_may_command(pool_data):
+            # The server would refuse this, and says so in French with no hint
+            # that the account is the reason. Say it here instead.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="account_read_only",
+                translation_placeholders={
+                    "name": self._name,
+                    "access": str(klereo_access(pool_data)),
+                },
+            )
         # The controller keeps a tenth of a degree, so round before sending and
         # hold the rounded value: a service call can pass any float, bypassing
         # the entity's step, and showing 26.35 while the pool holds 26.4 would

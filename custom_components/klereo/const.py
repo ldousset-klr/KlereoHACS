@@ -462,6 +462,20 @@ OUT_ICONS = {
     15: "mdi:flask",
 }
 
+# MySystems.access — what the account may do with this pool. SetParam's source
+# gives two thresholds and nothing else does, so only these two are encoded:
+# below 10 it refuses every command, and below 16 it accepts only the
+# parameters on a server-side allowed list that is not published.
+#
+# **This gates parameter writes only.** SetOut's own source has not been seen,
+# so nothing here assumes an out obeys the same numbers — the switches and the
+# mode selects keep letting the server decide.
+#
+# An absent access reads as unknown, never as refused: a payload that does not
+# carry it must not lock anyone out of their own pool.
+ACCESS_COMMAND_MIN = 10
+ACCESS_PARAM_ANY = 16
+
 # The params[] key, which is also the paramID SetParam takes. The codeowner
 # confirmed it is degrees Celsius directly, sent as a float — so it is not one
 # of the formats SetParam rounds to an integer, and nothing here converts.
