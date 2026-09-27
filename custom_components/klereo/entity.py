@@ -1,12 +1,21 @@
 """Shared device identity, so every entity of a pool groups under one device."""
 
+import logging
+
+from requests import RequestException
+
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import (ACCESS_COMMAND_MIN, ACCESS_PARAM_ANY, DOMAIN,
+from .klereo_api import KlereoAPI, KlereoError
+from .const import (ACCESS_COMMAND_MIN, ACCESS_PARAM_ANY, COMMAND_DONE,
+                    COMMAND_STATUS, DOMAIN,
                     FILTRATION_OUT_INDEX, MAX_PUMP_SPEED,
                     TREATMENT_OUT_INDEXES,
                     OUT_MODE_NAME_OVERRIDES, OUT_MODE_STATES, OUT_MODES,
                     PAYLOAD_VARIANTS, filtration_mode_states)
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def klereo_device_info(pool_data, poolid) -> DeviceInfo:
@@ -172,3 +181,69 @@ def klereo_out_refusal(pool_data, index):
     if access < ACCESS_PARAM_ANY and index in TREATMENT_OUT_INDEXES:
         return "out_needs_full_access"
     return None
+
+
+class KlereoCommandMixin:
+    """Follows a queued write to its end without blocking the service call.
+
+    Both write endpoints only queue: they answer a cmdID and the pod applies
+    the command later. WaitCommand turns that cmdID into a verdict, but it
+    blocks for up to 25 s doing it — far too long to hold a switch press, so
+    the wait runs as a background task and the service returns at once.
+
+    That also fixes the flicker the optimistic value used to have. The write
+    no longer refreshes immediately, which would have replaced the optimistic
+    value with a payload the pod had not updated yet; it refreshes once the
+    command has landed, so the reading that arrives is the new one.
+    """
+
+    def _clear_optimistic(self):
+        """Drop whatever this entity is showing ahead of the payload."""
+        raise NotImplementedError
+
+    def _follow_command(self, reply, what):
+        """Start the confirmation and return. Never awaited by a service call."""
+        self.hass.async_create_task(self._confirm_command(reply, what))
+
+    async def _confirm_command(self, reply, what):
+        cmd_id = KlereoAPI.command_id(reply)
+        if cmd_id is None:
+            LOGGER.debug("%s: no cmdID to follow, refreshing blind", what)
+            await self.coordinator.async_request_refresh()
+            return
+        try:
+            row = await self.hass.async_add_executor_job(
+                self._api.wait_command, cmd_id
+            )
+        except (KlereoError, RequestException) as err:
+            # The command may well have been applied; only the confirmation
+            # failed. Drop the optimistic value and let the payload answer.
+            LOGGER.warning("%s: could not confirm command %s: %s", what, cmd_id, err)
+            self._clear_optimistic()
+            self.async_write_ha_state()
+            await self.coordinator.async_request_refresh()
+            return
+
+        status = row.get("status")
+        try:
+            status = int(status)
+        except (TypeError, ValueError):
+            status = None
+
+        if status == COMMAND_DONE:
+            LOGGER.debug("%s: command %s applied", what, cmd_id)
+        elif status is not None and status < COMMAND_DONE:
+            # WaitCommand gave up rather than the command failing: the pod has
+            # not answered within its ceiling. Nothing is wrong yet.
+            LOGGER.info("%s: command %s still pending (%s)", what, cmd_id,
+                        COMMAND_STATUS.get(status, status))
+            self._clear_optimistic()
+            self.async_write_ha_state()
+        else:
+            detail = row.get("detail")
+            LOGGER.error("%s: command %s failed — %s%s", what, cmd_id,
+                         COMMAND_STATUS.get(status, f"status {status}"),
+                         f" ({detail})" if detail else "")
+            self._clear_optimistic()
+            self.async_write_ha_state()
+        await self.coordinator.async_request_refresh()

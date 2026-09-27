@@ -15,6 +15,35 @@ UPDATE_INTERVAL = 300
 HA_VERSION = "100-HA"
 HTTP_TIMEOUT = 30
 
+# WaitCommand.php blocks server-side while it polls its Commands row: 499
+# sleeps of 50 ms, so just under 25 s. Its own comment says "400 * 50000us =
+# 25 sec", whose arithmetic gives 20 — the loop bound of 500 is what actually
+# lands near 25. This one request therefore needs a ceiling comfortably above
+# HTTP_TIMEOUT, or the client would give up first and report a failure for a
+# command that may well have succeeded.
+WAIT_COMMAND_TIMEOUT = 40
+
+# Commands.status, from the pod server's CommandSender.h.
+#
+# WaitCommand loops while status < 9, so **9 and above are terminal — but only
+# 9 is success**. Anything from 10 up is a named failure, and 0/1 mean the
+# endpoint gave up waiting rather than that anything went wrong.
+COMMAND_DONE = 9
+COMMAND_STATUS = {
+    0:  "queued, not yet sent to the pod",       # COMMAND_WAIT
+    1:  "sent to the pod, awaiting its answer",  # COMMAND_SENT
+    9:  "applied",                               # COMMAND_DONE
+    10: "the pod reported an error",             # COMMAND_ERROR
+    11: "the pod rejected a parameter",          # COMMAND_BADPARAM
+    12: "the pod did not recognise the command", # COMMAND_UNKNOWN
+    13: "the pod refused it: access",            # COMMAND_BADACCESS
+    15: "the pod never answered",                # COMMAND_TIMEOUT
+    16: "aborted",                               # COMMAND_ABORT
+    17: "the pod is not connected",              # COMMAND_NOTCONNECTED
+    18: "no service",                            # COMMAND_NOSERVICE
+    19: "the pod needs a firmware update",       # COMMAND_UPDATEREQ
+}
+
 # Value reported by a probe that is absent or unreadable (seen on an air probe
 # whose filteredTime is null). Thresholds use -2000 as the same kind of marker.
 PROBE_INVALID = -1000

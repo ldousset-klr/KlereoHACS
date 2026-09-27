@@ -14,8 +14,8 @@ from .const import (
     OUT_STATUS_ON,
     OUT_STATUS_UNKNOWN,
 )
-from .entity import (IO_TYPE_OUT, klereo_access, klereo_device_info,
-                     klereo_io_names, klereo_out_mode_name,
+from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
+                     klereo_device_info, klereo_io_names, klereo_out_mode_name,
                      klereo_out_mode_states, klereo_out_refusal)
 
 import logging
@@ -42,7 +42,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     async_add_entities(switches)
 
 
-class KlereoOut(CoordinatorEntity, RestoreEntity, SwitchEntity):
+class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEntity):
     """An out as a switch.
 
     RestoreEntity is here for the filtration alone: turning it on has to pick a
@@ -75,6 +75,9 @@ class KlereoOut(CoordinatorEntity, RestoreEntity, SwitchEntity):
         # on resumes it rather than dropping the pump to its slowest.
         self._last_speed = None
         self._learn_speed(out)
+
+    def _clear_optimistic(self):
+        self._optimistic_state = None
 
     @callback
     def _learn_speed(self, out):
@@ -233,18 +236,18 @@ class KlereoOut(CoordinatorEntity, RestoreEntity, SwitchEntity):
         mode, rule = self._mode_and_rule()
         state = self._on_state(rule)
         self._writable_mode(state, mode, rule)
-        await self.hass.async_add_executor_job(
+        reply = await self.hass.async_add_executor_job(
             self._api.set_out, self._index, state, mode
         )
         self._optimistic_state = True
         self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        self._follow_command(reply, f"{self._name} on")
 
     async def async_turn_off(self, **kwargs):
         mode = self._writable_mode(OUT_STATUS_OFF)
-        await self.hass.async_add_executor_job(
+        reply = await self.hass.async_add_executor_job(
             self._api.turn_off_device, self._index, mode
         )
         self._optimistic_state = False
         self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        self._follow_command(reply, f"{self._name} off")

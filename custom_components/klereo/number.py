@@ -6,7 +6,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (DOMAIN, FILTRATION_OUT_INDEX, ICON_FILTRATION_SPEED,
                     MAX_PUMP_SPEED, OUT_LABELS, SETPOINT_MAX, SETPOINT_MIN,
                     SETPOINT_PARAM, SETPOINT_STEP)
-from .entity import (IO_TYPE_OUT, klereo_access, klereo_device_info,
+from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
+                     klereo_device_info,
                      klereo_io_names, klereo_may_command, klereo_out_mode_name,
                      klereo_out_mode_states, klereo_out_refusal,
                      klereo_pump_max_speed)
@@ -67,7 +68,7 @@ def _filtration_speed(api, coordinator, pool_data, poolid, device_info):
                                  max_speed, klereo_name)
 
 
-class KlereoFiltrationSpeed(CoordinatorEntity, NumberEntity):
+class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
     """The filtration out's status read and written as a speed index."""
 
     _attr_icon = ICON_FILTRATION_SPEED
@@ -85,6 +86,9 @@ class KlereoFiltrationSpeed(CoordinatorEntity, NumberEntity):
         base = (klereo_name or OUT_LABELS.get(FILTRATION_OUT_INDEX)
                 or f"klereo{poolid}out{FILTRATION_OUT_INDEX}")
         self._name = f"{base} speed"
+        self._optimistic_speed = None
+
+    def _clear_optimistic(self):
         self._optimistic_speed = None
 
     @callback
@@ -154,15 +158,15 @@ class KlereoFiltrationSpeed(CoordinatorEntity, NumberEntity):
             )
         LOGGER.debug("Setting filtration speed of #%s to %s (mode %s)",
                      self._poolid, speed, mode)
-        await self.hass.async_add_executor_job(
+        reply = await self.hass.async_add_executor_job(
             self._api.set_out, FILTRATION_OUT_INDEX, speed, mode
         )
         self._optimistic_speed = speed
         self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        self._follow_command(reply, f"{self._name} = {speed}")
 
 
-class KlereoWaterSetpoint(CoordinatorEntity, NumberEntity):
+class KlereoWaterSetpoint(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
     """params.ConsigneEau — the water temperature the controller aims for.
 
     A `number` from the start, not a sensor, even though it refuses to be set
@@ -193,6 +197,9 @@ class KlereoWaterSetpoint(CoordinatorEntity, NumberEntity):
         self._key = f"klereo{poolid}watersetpoint"
         self._name = "Water setpoint"
         # Held between a write and the next successful poll.
+        self._optimistic_value = None
+
+    def _clear_optimistic(self):
         self._optimistic_value = None
 
     @callback
@@ -238,9 +245,9 @@ class KlereoWaterSetpoint(CoordinatorEntity, NumberEntity):
         # be a discrepancy this entity invented.
         value = round(value, 1)
         LOGGER.debug("Setting water setpoint of #%s to %s", self._poolid, value)
-        await self.hass.async_add_executor_job(
+        reply = await self.hass.async_add_executor_job(
             self._api.set_param, SETPOINT_PARAM, value
         )
         self._optimistic_value = value
         self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        self._follow_command(reply, f"{self._name} = {value}")

@@ -17,9 +17,9 @@ One device per pool, named after its Klereo nickname, carrying:
   the auxiliaries.
 - **The water temperature setpoint**, on pools that have one, readable and settable in
   °C to a tenth of a degree — the resolution the controller keeps. The controller queues
-  the change rather than applying it on the spot, so the value may show the old reading
-  again for a moment before the new one sticks. An account with view-only rights on the
-  pool is told so when it tries, instead of getting an untranslated refusal from the
+  the change rather than applying it on the spot, so the integration follows it up and
+  only refreshes once the pool has really taken it. An account with view-only rights on
+  the pool is told so when it tries, instead of getting an untranslated refusal from the
   server.
 - **The filtration speed**, on pools whose pump has more than one. Settable while the
   filtration is in *Manuel*; in the other modes the schedule or the regulator owns the
@@ -80,6 +80,13 @@ you can read from https://connect.klereo.fr/php/GetIndex.php
 The *Server* field on the first screen exists for testing against another Klereo instance.
 Leave it alone unless you know why you are changing it — **your credentials are sent to
 whatever address it holds**.
+
+Writing anything — a switch, a mode, a speed, the setpoint — is **queued rather than
+applied**: Klereo hands the command to the pool controller, which picks it up a moment
+later. The integration follows each one to its conclusion in the background, so a control
+holds the value you asked for until the pool confirms it, and reverts with the reason in
+the log if the controller refuses — it is not connected, it needs a firmware update, the
+account lacks the rights. Nothing waits on screen while that happens.
 
 ## Current limitations
 
@@ -149,6 +156,7 @@ documented; treat a 401 or 403 as "renew and retry once".
 | `GetPoolDetails.php` | `poolID`, `lang` | one system in full |
 | `SetOut.php` | `poolID`, `outIdx`, `newMode`, `newState` | acknowledgement |
 | `SetParam.php` | `poolID`, `paramID`, `newValue`, optional `label` and `comMode` | one `{cmdID, poolID}` per system |
+| `WaitCommand.php` | `cmdID` | that command's row, once the pod has answered or ~25 s have passed |
 
 ### Response envelope
 
