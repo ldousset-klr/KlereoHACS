@@ -45,15 +45,31 @@ firmware's rules, the payload-driven variants, the refusals and the optimistic/c
 dance. When a rule legitimately changes, the failing suite is the record of the old one —
 update it and say so, rather than reading it as a regression.
 
-What the suite does **not** do is exercise Home Assistant itself — entity registration,
-the config flow's UI, the coordinator's real scheduling and every HTTP call are stubbed
-out. For those, and before any release, still copy `custom_components/klereo/` into a
+What that suite does **not** do is exercise Home Assistant itself. **`tests_ha/`** does:
+the same integration inside a real Home Assistant via
+`pytest-homeassistant-custom-component`, with only Klereo faked (`tests_ha/pool.py`, a
+synthetic payload that also applies the writes it receives). It covers entity
+registration, the device, the registry flags, the flows end to end, reload, the
+coordinator's real scheduling, the services and the translation loader. Run it with
+`pip install -r tests_ha/requirements.txt` then `python -m pytest -c tests_ha/pytest.ini
+tests_ha` — **the `-c` is required**, the two suites cannot share a process, the stub
+replacing `homeassistant.*` in `sys.modules`. `tests_ha/requirements-min.txt` installs
+Home Assistant 2024.11.0 on Python 3.12, and CI runs both. **Its first run on 2024.11
+caught a real bug**: the options flow read `self.config_entry`, which Home Assistant only
+provides from 2024.12, so it now reads the entry through `self.handler`, and the stub's
+`OptionsFlow` refuses `config_entry` so the stubbed suite catches it too. Anything that
+touches a Home Assistant API belongs in a `tests_ha/` test, run against **both** versions.
+`tests_ha/README.md` lists its suites and the two things to know when writing one
+(background tasks, clock margins).
+
+The HTTP calls themselves are still faked by both. For those, and before any release, still copy `custom_components/klereo/` into a
 running Home Assistant's `config/custom_components/`, restart HA, add the integration via
 the UI config flow (username / password / poolID), and read the logs. Everything logs through `logging.getLogger(__name__)` at INFO/DEBUG, so raise the
 `custom_components.klereo` logger to `debug` in `configuration.yaml` when debugging.
 
-`.github/workflows/validate.yml` runs **pytest** (on Python 3.12 and 3.13),
-**hassfest** and the **HACS action** on every push to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
+`.github/workflows/validate.yml` runs **pytest** (on Python 3.12 and 3.13), the
+**`tests_ha/` suite** (Home Assistant 2024.11.0 and latest), **hassfest** and the
+**HACS action** on every push to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
 `domain`, `name`, then alphabetical, and an integration defining `async_setup` must also
 define a `CONFIG_SCHEMA` — this one has neither, being config-entry only, and declares
 `cv.config_entry_only_config_schema(DOMAIN)`. The HACS action additionally requires the

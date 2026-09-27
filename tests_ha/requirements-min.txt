@@ -1,0 +1,6 @@
+# The suite against Home Assistant 2024.11.0, the minimum hacs.json declares.
+# 0.13.181 is the release of the harness that pins homeassistant==2024.11.0.
+pytest-homeassistant-custom-component==0.13.181
+# That Home Assistant's acme dependency predates josepy 2, which removed
+# ComparableX509; unpinned, pip resolves josepy 2 and the import fails.
+josepy<2

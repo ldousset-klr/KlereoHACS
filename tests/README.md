@@ -6,7 +6,8 @@ python -m pytest
 ```
 
 from the repository root. That file is **pytest, `requests` and `voluptuous`** — no Home
-Assistant, no network, no pool.
+Assistant, no network, no pool. The suite against a real Home Assistant lives apart, in
+[`tests_ha/`](../tests_ha/).
 
 ## How it works
 
@@ -25,7 +26,8 @@ with:
 - `ConfigEntries` / `ConfigEntryData` — `hass.config_entries` recording every update and
   reload, and an entry with its data, options and update listeners. The `ConfigFlow` and
   `OptionsFlow` bases return their steps as plain dicts, and the selectors keep their
-  config so a test can read a form's bounds.
+  config so a test can read a form's bounds. `OptionsFlow.config_entry` raises, as it
+  does on Home Assistant 2024.11: the flow must find its entry through `handler`.
 
 `conftest.py` patches `asyncio.sleep` to a no-op, so the seven `COMMAND_POLL_DELAYS`
 waits cost nothing.

@@ -345,12 +345,21 @@ pip install -r requirements-test.txt
 python -m pytest
 ```
 
-[`tests/README.md`](tests/README.md) says what each suite covers. GitHub Actions runs it
-on Python 3.12 and 3.13 alongside hassfest and the HACS validator, on every push and
-pull request.
+[`tests/README.md`](tests/README.md) says what each suite covers.
 
-It stubs Home Assistant out, so it cannot catch a break in entity registration, the
-config flow's UI or the real HTTP calls. Those still want a real install.
+A second suite, under [`tests_ha/`](tests_ha/), runs the integration inside a **real**
+Home Assistant, only the Klereo server being faked — entity registration, the setup and
+options forms, reloads, polling and the services all run for real:
+
+```bash
+pip install -r tests_ha/requirements.txt
+python -m pytest -c tests_ha/pytest.ini tests_ha
+```
+
+GitHub Actions runs both on every push and pull request, the second against Home
+Assistant 2024.11.0 — the oldest release supported — and the latest, alongside hassfest
+and the HACS validator. Neither makes a real HTTP call to Klereo; that still wants a real
+install.
 
 ## Todo
 

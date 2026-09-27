@@ -5,8 +5,8 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    # Both validators track moving targets, so a weekly run catches a break
-    # that no commit of ours caused.
+    # The validators and the latest Home Assistant are moving targets, so a
+    # weekly run catches a break that no commit of ours caused.
     - cron: "0 4 * * 1"
   workflow_dispatch:
 
@@ -30,6 +30,31 @@ jobs:
       # here installs it. `requests` is not stubbed — it is the integration's
       # own runtime dependency and the KlereoAPI suites drive the real library.
       - run: python -m pytest
+
+  ha-tests:
+    # The same integration inside a real Home Assistant (tests_ha/), Klereo
+    # alone faked: entity registration, the flows, reload, scheduling, the
+    # services. Run against the minimum hacs.json declares and the newest
+    # release, so a break on either end shows before a user reports it.
+    name: Home Assistant ${{ matrix.ha }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ha: "2024.11.0 (minimum)"
+            python-version: "3.12"
+            requirements: tests_ha/requirements-min.txt
+          - ha: latest
+            python-version: "3.13"
+            requirements: tests_ha/requirements.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r ${{ matrix.requirements }}
+      - run: python -m pytest -c tests_ha/pytest.ini tests_ha
 
   hassfest:
     name: hassfest
