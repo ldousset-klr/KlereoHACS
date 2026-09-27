@@ -207,6 +207,11 @@ class KlereoWaterSetpoint(CoordinatorEntity, NumberEntity):
         return (self.coordinator.data.get("params") or {}).get(SETPOINT_PARAM)
 
     async def async_set_native_value(self, value: float) -> None:
+        # The controller keeps a tenth of a degree, so round before sending and
+        # hold the rounded value: a service call can pass any float, bypassing
+        # the entity's step, and showing 26.35 while the pool holds 26.4 would
+        # be a discrepancy this entity invented.
+        value = round(value, 1)
         LOGGER.debug("Setting water setpoint of #%s to %s", self._poolid, value)
         await self.hass.async_add_executor_job(
             self._api.set_param, SETPOINT_PARAM, value

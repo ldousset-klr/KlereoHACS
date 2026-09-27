@@ -196,9 +196,11 @@ class KlereoAPI:
 
         The server rejects the literal "NaN", and packs the value with the
         format its parameter table declares — rounding to an integer for the
-        c/C/v formats. So a fractional value may come back rounded, and what
-        scale it is on is the table's business, not this method's: the caller
-        sends the same units it read.
+        c/C/v formats. So a fractional value may come back rounded on a
+        parameter declared as an integer, and what scale it is on is the
+        table's business, not this method's: the caller sends the same units it
+        read. ConsigneEau is a float in degrees Celsius and escapes that
+        rounding; a parameter whose format is unknown should not assume it does.
         """
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             raise KlereoError(f"SetParam {paramID}: {value!r} is not a number")

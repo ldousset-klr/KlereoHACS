@@ -462,17 +462,23 @@ OUT_ICONS = {
     15: "mdi:flask",
 }
 
-# The water setpoint's slider bounds. **Provisional**: the firmware's own
-# limits have not been supplied. params.EauMin/EauMax exist but are the water
-# probe's alarm thresholds, which is not the same thing, so they are not used
-# here. These constrain the control only — the reading is published as the
-# payload gives it, so a value outside this range still shows correctly.
-# The params[] key, which is also the paramID SetParam takes.
+# The params[] key, which is also the paramID SetParam takes. The codeowner
+# confirmed it is degrees Celsius directly, sent as a float — so it is not one
+# of the formats SetParam rounds to an integer, and nothing here converts.
 SETPOINT_PARAM = "ConsigneEau"
 
+# The controller stores the setpoint to a tenth of a degree, which is what the
+# step reflects: offering anything finer would show a precision the pool does
+# not keep.
+SETPOINT_STEP = 0.1
+
+# **Provisional**: the firmware's own limits have not been supplied.
+# params.EauMin/EauMax exist but are the water probe's alarm thresholds, which
+# is not the same thing, so they are not used here. These constrain the control
+# only — the reading is published as the payload gives it, so a value outside
+# this range still shows correctly.
 SETPOINT_MIN = 0.0
 SETPOINT_MAX = 40.0
-SETPOINT_STEP = 0.5
 
 ICON_FILTRATION_SPEED = "mdi:speedometer"
 ICON_OUT_MODE = "mdi:tune"

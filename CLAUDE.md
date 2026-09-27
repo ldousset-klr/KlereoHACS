@@ -122,14 +122,17 @@ credential disclosure, not just a connection failure.
 - `number.py` — two entities, added independently: a pool may have either, both or
   neither. **The water setpoint** is `params.ConsigneEau`, the temperature the controller
   aims for, created whenever the payload carries it as a number — absent on a pool with no
-  heating. It writes through `api.set_param()`. The value is
-  published **exactly as the payload gives it** and written back on the same scale, so
-  the round trip holds whatever units the controller's parameter table is on — nothing
-  here needs to know. `SETPOINT_MIN`/`MAX`/
-  `STEP` are **provisional** — the firmware's own limits were never supplied, and
-  `params.EauMin`/`EauMax` are the water probe's alarm thresholds, not the setpoint's
-  bounds, so they are deliberately not used. They constrain the control only; a reading
-  outside them still displays.
+  heating. It writes through `api.set_param()`. It is **degrees
+  Celsius directly, sent as a float**, so nothing converts in either direction — and being
+  a float format it escapes the integer rounding `SetParam` applies to the `c`/`C`/`v`
+  parameters. The controller keeps it to **a tenth of a degree**, which `SETPOINT_STEP`
+  reflects; `async_set_native_value()` also rounds before sending and holds the rounded
+  value, since a `number.set_value` service call can pass any float past the entity's step
+  and showing 26.35 while the pool holds 26.4 would be a discrepancy this entity invented.
+  `SETPOINT_MIN`/`MAX` stay **provisional** — the firmware's own limits were never
+  supplied, and `params.EauMin`/`EauMax` are the water probe's alarm thresholds, not the
+  setpoint's bounds, so they are deliberately not used. They constrain the control only; a
+  reading outside them still displays.
 - Also in `number.py`: the filtration speed, the one out whose `status` is a speed index. It is
   created only when the pool declares `PumpMaxSpeed > 1`, so pools with no speed control
   keep just their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`, resolved by
