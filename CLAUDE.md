@@ -269,12 +269,28 @@ the old one on the next poll.
 
 Two of its refusals are worth knowing. The server rejects the literal `NaN`, so
 `set_param()` refuses non-numbers and non-finite values before the round trip. And
-**authorization is per parameter**: an account below access level 16 may only write the
-parameters on the server's own allowed list, which is not published — a pool owner may
-therefore get `Vous n'êtes pas autorisé à faire cette action` on a parameter a
-professional account writes fine. None of `SetParam`'s error texts match `AUTH_HINTS`, so
-such a refusal surfaces as a plain `KlereoError` instead of triggering a JWT renewal and
-the reauth flow; that is checked by a test, not assumed.
+**authorization is per account and per parameter**, from `MySystems.access`: below
+`ACCESS_COMMAND_MIN` (10) the server refuses every command, and below `ACCESS_PARAM_ANY`
+(16) it accepts only the parameters on an allowed list that is not published — so a pool
+owner may get `Vous n'êtes pas autorisé à faire cette action` on a parameter a
+professional account writes fine.
+
+`entity.klereo_access()` reads that level from the payload and
+`entity.klereo_may_command()` turns it into a yes or no, which the setpoint checks before
+writing: below 10 it raises `account_read_only`, naming the level, rather than making a
+round trip that comes back in French with no hint that the account is the reason. **An
+absent `access` means unknown, never refused** — `GetIndex` is documented as carrying it
+but `GetPoolDetails` has not been confirmed against a capture, and a payload without the
+field must not lock anyone out of their own pool. A non-integer reads the same way. The 16
+threshold is deliberately *not* enforced locally: without the allowed list, only the
+server can say, so that refusal still travels.
+
+**This gates parameter writes alone.** `SetOut.php`'s own source has never been read, so
+nothing assumes an out obeys the same numbers; the switches and the mode selects still let
+the server decide, and a test pins that they do at every level. None of `SetParam`'s error
+texts match `AUTH_HINTS`, so a refusal that does reach the server surfaces as a plain
+`KlereoError` instead of triggering a JWT renewal and the reauth flow; that too is checked
+by a test, not assumed.
 
 Writes to an out go through `SetOut.php` with `poolID`, `outIdx`, `newMode` and `newState`.
 `newState` takes the same encoding as `status` above — so turning the filtration on
@@ -417,7 +433,8 @@ list are reserved and must be left alone where an out already carries one.
 
 Same `{"status": "ok", "response": [...]}` envelope, one entry per system the account can
 see, carrying `idSystem` and `poolNickname` plus a summary of the system (`probes`,
-`outsmodes`, `pin`, `compta`, `proID`, `suspended`, `access`). `list_pools()` keeps only
+`outsmodes`, `pin`, `compta`, `proID`, `suspended`, `access` — the level the writes
+section above turns into a permission). `list_pools()` keeps only
 the id and the name. `suspended` is deliberately *not* filtered on — the codeowner's call:
 a suspended system stays in the picker and fails later at `GetPoolDetails` with a clear
 message, rather than vanishing with no explanation.
