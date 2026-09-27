@@ -59,7 +59,11 @@ class ConfigFlow(_FlowHandler):
 ce.ConfigFlow = ConfigFlow
 
 class OptionsFlow(_FlowHandler):
-    config_entry = None       # Home Assistant sets it; so does a test
+    handler = None            # the entry_id, as Home Assistant sets it
+    @property
+    def config_entry(self):
+        # Absent from Home Assistant 2024.11, so the component must not read it.
+        raise AttributeError("OptionsFlow.config_entry needs Home Assistant 2024.12")
 ce.OptionsFlow = OptionsFlow
 
 cv = _mod('homeassistant.helpers.config_validation')

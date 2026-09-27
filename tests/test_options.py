@@ -68,7 +68,9 @@ def test_options(check, monkeypatch):
 
     def options_flow(options):
         flow = KlereoOptionsFlow()
-        flow.config_entry = ConfigEntryData(DATA, options)
+        flow.hass = Hass()
+        flow.hass.config_entries = ConfigEntries([ConfigEntryData(DATA, options)])
+        flow.handler = 'e'
         return flow
 
     print("== formulaire d'options ==")

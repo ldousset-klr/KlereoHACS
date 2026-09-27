@@ -239,16 +239,26 @@ class KlereoOptionsFlow(config_entries.OptionsFlow):
     update listener, which reloads it on the new interval.
     """
 
+    @property
+    def _entry(self):
+        """The entry being configured.
+
+        Not self.config_entry: Home Assistant only provides it from 2024.12,
+        and 2024.11 — the minimum hacs.json declares — raises AttributeError
+        on it. The flow's handler is the entry_id on every release.
+        """
+        return self.hass.config_entries.async_get_entry(self.handler)
+
     async def async_step_init(self, user_input=None):
         if user_input is not None:
             # The selector hands back a float; store whole seconds.
             return self.async_create_entry(data={
-                **self.config_entry.options,
+                **self._entry.options,
                 CONF_SCAN_INTERVAL: round(user_input[CONF_SCAN_INTERVAL]),
             })
         data_schema = {
             vol.Required(
-                CONF_SCAN_INTERVAL, default=scan_interval(self.config_entry.options)
+                CONF_SCAN_INTERVAL, default=scan_interval(self._entry.options)
             ): NumberSelector(
                 NumberSelectorConfig(
                     min=SCAN_INTERVAL_MIN,

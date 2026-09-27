@@ -1,0 +1,4 @@
+# The suite against the newest Home Assistant pip resolves for this Python.
+# pytest-homeassistant-custom-component pins homeassistant itself, one release
+# of it per Home Assistant release.
+pytest-homeassistant-custom-component
