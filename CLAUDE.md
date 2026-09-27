@@ -274,10 +274,10 @@ The rest of the code depends on these keys:
   places**, which is why a volume row takes a *source* rather than a `params` key:
   `_seconds_param()` for the pH corrector and the disinfectant, `_seconds_out()` for the
   flocculant, whose only counter is `outs[8].totalTime`, and `_seconds_extra()` for hybrid
-  chlorine, whose counter is `ExtraParams.HybChl_TotalTime`. Every capture spells the out's
-  key `totalTime` and the codeowner wrote `TotalTime`, so `OUT_TOTAL_TIME_KEYS` accepts
-  both: read under the wrong spelling the row would produce no sensor and say nothing
-  about why.
+  chlorine, whose counter is `ExtraParams.HybChl_TotalTime`. The out's key is
+  `totalTime`, **lowercase t** — what every capture shows, and confirmed by the codeowner;
+  read under the wrong spelling the row would produce no sensor and say nothing about why,
+  which is what `OUT_TOTAL_TIME_KEY` exists to pin.
 
   **The disinfectant alone carries a gate.** Out 3 drives a dosing pump only where
   `params.TraitMode` is in `PUMP_DOSED_TREATMENTS` — chlorine and oxygen. Bromine feeds a

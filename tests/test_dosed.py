@@ -8,7 +8,7 @@ def test_dosed(check):
     from klereo.sensor import KlereoInfoSensor, async_setup_entry as sensor_setup
     from klereo.const import (CHLORINE_FLOW_PARAM, FLOCCULANT_OUT_INDEX,
                               HYBRID_CHLORINE_OUT_INDEX, HYBRID_CHLORINE_TIME_KEY,
-                              ML_PER_FLOW_UNIT, OUT_TOTAL_TIME_KEYS, PH_FLOW_PARAM,
+                              ML_PER_FLOW_UNIT, OUT_TOTAL_TIME_KEY, PH_FLOW_PARAM,
                               PUMP_DOSED_TREATMENTS, SECONDS_PER_HOUR,
                               TREATMENT_OUT_INDEXES,
                               TRAIT_NONE, TRAIT_CHLORE, TRAIT_ELECTRO_X,
@@ -49,7 +49,7 @@ def test_dosed(check):
     check("débit pH",        PH_FLOW_PARAM, 'PHMinus_Debit')
     check("débit chlore",    CHLORINE_FLOW_PARAM, 'Chlore_Debit')
     check("clé hybride",     HYBRID_CHLORINE_TIME_KEY, 'HybChl_TotalTime')
-    check("clés outs",       OUT_TOTAL_TIME_KEYS, ('totalTime', 'TotalTime'))
+    check("clé outs",        OUT_TOTAL_TIME_KEY, 'totalTime')
     check("floculant = 8",   FLOCCULANT_OUT_INDEX, 8)
     check("hybride = 15",    HYBRID_CHLORINE_OUT_INDEX, 15)
     check("0,1 L/h en mL/h", ML_PER_FLOW_UNIT, 100)
@@ -95,11 +95,14 @@ def test_dosed(check):
     check("hybride seul", vols(i), ['hybridchlorinevolume'])
     check("hybride = 1000 mL", i['hybridchlorinevolume'].native_value, 1000)
 
-    print("== le floculant : les deux orthographes, et la bonne sortie ==")
-    for key in OUT_TOTAL_TIME_KEYS:
-        _, i = build(params={CHLORINE_FLOW_PARAM: 10},
-                     outs=[out(FLOCCULANT_OUT_INDEX, 3600, key)])
-        check(f"outs[8].{key}", i['flocculantvolume'].native_value, 1000)
+    print("== le floculant : la bonne clé, sur la bonne sortie ==")
+    _, i = build(params={CHLORINE_FLOW_PARAM: 10},
+                 outs=[out(FLOCCULANT_OUT_INDEX, 3600, OUT_TOTAL_TIME_KEY)])
+    check("outs[8].totalTime", i['flocculantvolume'].native_value, 1000)
+    # La majuscule n'est pas la clé du coffret : elle ne doit rien créer.
+    _, i = build(params={CHLORINE_FLOW_PARAM: 10},
+                 outs=[out(FLOCCULANT_OUT_INDEX, 3600, 'TotalTime')])
+    check("outs[8].TotalTime ignoré", 'flocculantvolume' in i, False)
     _, i = build(params={CHLORINE_FLOW_PARAM: 10}, outs=[out(FLOCCULANT_OUT_INDEX)])
     check("sortie sans compteur", 'flocculantvolume' in i, False)
     _, i = build(params={CHLORINE_FLOW_PARAM: 10}, outs=[out(2, 3600), out(9, 3600)])

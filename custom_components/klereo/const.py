@@ -570,10 +570,9 @@ CHLORINE_FLOW_PARAM = "Chlore_Debit"
 # the pH corrector and the disinfectant have a `params` counter, the flocculant
 # only its own `outs[]` entry, and hybrid chlorine only an `ExtraParams` key.
 #
-# `outs[]` is spelled `totalTime` in every capture; the codeowner wrote
-# `TotalTime`. Both are accepted, since a key read under the wrong spelling
-# yields no sensor and says nothing about why.
-OUT_TOTAL_TIME_KEYS = ("totalTime", "TotalTime")
+# The out's key is `totalTime`, lowercase t — what every capture shows, and
+# confirmed by the codeowner.
+OUT_TOTAL_TIME_KEY = "totalTime"
 HYBRID_CHLORINE_TIME_KEY = "HybChl_TotalTime"
 
 # One unit of that flow (0.1 L/h) expressed in millilitres per hour, and the

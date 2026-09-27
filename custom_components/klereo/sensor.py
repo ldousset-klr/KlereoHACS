@@ -7,7 +7,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (CHLORINE_FLOW_PARAM, DOMAIN, FLOCCULANT_OUT_INDEX,
                     HYBRID_CHLORINE_OUT_INDEX, HYBRID_CHLORINE_TIME_KEY,
                     ICON_INFO, ICON_WATER_VOLUME, ML_PER_FLOW_UNIT,
-                    OUT_TOTAL_TIME_KEYS, PH_FLOW_PARAM, PROBE_ICONS,
+                    OUT_TOTAL_TIME_KEY, PH_FLOW_PARAM, PROBE_ICONS,
                     PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
                     PROBE_TYPE_DEFAULT, PUMP_DOSED_TREATMENTS,
                     SECONDS_PER_HOUR)
@@ -63,20 +63,11 @@ def _seconds_param(key):
 
 def _seconds_out(index):
     """Running seconds from an out's own entry — the flocculant's, which has no
-    `params` counter of its own.
-
-    Both spellings of the key are tried: every capture shows `totalTime`, the
-    codeowner wrote `TotalTime`, and reading only one of them would produce no
-    sensor without saying why.
-    """
+    `params` counter of its own."""
     def source(data):
         for out in data.get("outs") or ():
-            if out.get("index") != index:
-                continue
-            for key in OUT_TOTAL_TIME_KEYS:
-                if key in out:
-                    return out[key]
-            return None
+            if out.get("index") == index:
+                return out.get(OUT_TOTAL_TIME_KEY)
         return None
     return source
 
