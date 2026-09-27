@@ -8,7 +8,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from datetime import timedelta
 from requests import RequestException
 
-from .const import DOMAIN,UPDATE_INTERVAL
+from .const import DOMAIN, scan_interval
 from .klereo_api import KlereoAPI, KlereoAuthError, KlereoError
 
 import logging
@@ -51,7 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         config_entry=entry,
         name="klereo_data_coordinator",
         update_method=async_update_data,
-        update_interval=timedelta(seconds=UPDATE_INTERVAL),
+        update_interval=timedelta(seconds=scan_interval(entry.options)),
     )
     
     # Perform the first refresh to populate data
@@ -67,6 +67,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Forward the entry setup to supported platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # The options flow only writes entry.options; this is what applies them.
+    entry.async_on_unload(entry.add_update_listener(async_entry_updated))
+
     LOGGER.info("Successfully set up %s integration",DOMAIN)
     return True
 
@@ -76,3 +79,19 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok
+
+async def async_entry_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload when the poll interval changed, and ignore every other update.
+
+    Home Assistant calls this on any async_update_entry, the reauth and
+    reconfigure steps included — and those reload on their own, so reacting to
+    them as well would reload the entry twice. Comparing with the interval the
+    coordinator runs at singles out an options change.
+    """
+    runtime = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if runtime is None:
+        return      # already unloading, or reloading from another step
+    wanted = timedelta(seconds=scan_interval(entry.options))
+    if runtime["coordinator"].update_interval != wanted:
+        LOGGER.info("Poll interval changed to %s, reloading", wanted)
+        await hass.config_entries.async_reload(entry.entry_id)

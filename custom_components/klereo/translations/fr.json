@@ -31,6 +31,15 @@
           "username": "Identifiant",
           "password": "Mot de passe"
         }
+      },
+      "reconfigure": {
+        "title": "Klereo Connect",
+        "description": "Modifiez le serveur ou les identifiants utilisés pour cette piscine. Votre mot de passe est envoyé au serveur saisi ici.",
+        "data": {
+          "username": "Identifiant",
+          "password": "Mot de passe",
+          "server": "Serveur (à ne changer que pour tester)"
+        }
       }
     },
     "error": {
@@ -40,7 +49,19 @@
     "abort": {
       "reauth_successful": "Ré-authentification réussie.",
       "already_configured": "Cette piscine est déjà configurée.",
-      "no_pools": "Ce compte ne comporte aucune piscine."
+      "no_pools": "Ce compte ne comporte aucune piscine.",
+      "reconfigure_successful": "Les paramètres de connexion ont été mis à jour."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Klereo Connect",
+        "description": "Fréquence de lecture de la piscine sur le serveur Klereo, de 5 minutes à une heure. Un intervalle plus long allège la charge du serveur Klereo, au prix de mesures moins récentes.",
+        "data": {
+          "scan_interval": "Intervalle de rafraîchissement"
+        }
+      }
     }
   },
   "exceptions": {

@@ -5,8 +5,8 @@ pip install -r requirements-test.txt
 python -m pytest
 ```
 
-from the repository root. That file is **pytest and `requests`** — no Home Assistant, no
-network, no pool.
+from the repository root. That file is **pytest, `requests` and `voluptuous`** — no Home
+Assistant, no network, no pool.
 
 ## How it works
 
@@ -22,6 +22,10 @@ with:
 - `Hass` — `async_add_executor_job` calls straight through; `keep_tasks` / `run_tasks`
   let a test hold a background confirmation and step through it.
 - `FakeEntry` — keeps the background tasks it is handed, and cancels them on unload.
+- `ConfigEntries` / `ConfigEntryData` — `hass.config_entries` recording every update and
+  reload, and an entry with its data, options and update listeners. The `ConfigFlow` and
+  `OptionsFlow` bases return their steps as plain dicts, and the selectors keep their
+  config so a test can read a form's bounds.
 
 `conftest.py` patches `asyncio.sleep` to a no-op, so the seven `COMMAND_POLL_DELAYS`
 waits cost nothing.
@@ -29,7 +33,9 @@ waits cost nothing.
 `requests` is **not** stubbed. It is the integration's own runtime dependency —
 `manifest.json` declares it and four modules import it at module scope — and
 `test_setparam.py` and `test_wait.py` drive the real library with a monkeypatched
-session, which a fake exception hierarchy would not exercise.
+session, which a fake exception hierarchy would not exercise. `voluptuous` is real too:
+`test_options.py` fills the flows' forms in, which checks their defaults and required
+fields rather than only that a schema exists.
 
 Assertions go through the `check` fixture, not bare `assert`: it records every failure
 and reports them together at the end, so one run tells you everything that broke rather
@@ -60,6 +66,7 @@ release, still install the component in a running Home Assistant and read the lo
 | `test_heat.py` | `params.HeaterMode` selecting the heating's modes and their names — mode 3 is "Régulé" on a heater and "Réchauffe" on a heat pump; no `HeaterMode` means read-only |
 | `test_hybrid.py` | hybrid chlorine's single permitted mode, and the switch that is the real gain over it |
 | `test_modes.py` | the mode select in general: options offered, a reserved mode reported as `None`, `newState` = keep on a write, and the switch's refusals |
+| `test_options.py` | the poll interval — default, clamping, junk in storage; the options form's bounds and the whole seconds it stores; reconfigure validating the new server on the same poolID, requiring the password again, and leaving the entry alone on a refusal; the update listener reloading on an interval change only; every new step and abort translated in both languages |
 | `test_ph.py` | the pH corrector's modes, the `newState` each one sends, and the error text naming the entity as the user sees it |
 | `test_resume.py` | the filtration's last-known speed: learned from polls, sent back on `turn_on`, restored after a restart, ignored when out of range |
 | `test_runtime.py` | `_params_hours()` — seconds to hours, `duration` / `total_increasing`, and no entity on an absurd value |
