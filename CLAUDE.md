@@ -16,10 +16,14 @@ All source paths below are relative to `custom_components/klereo/`.
 
 ## Testing changes
 
-`python -m pytest` from the root runs the suite in `tests/`. It needs **pytest and
-nothing else** — no Home Assistant, no `requests`, no network. `tests/klereo_stub.py`
-installs fake `homeassistant.*` modules into `sys.modules`, and `tests/conftest.py`
-imports it before anything else so the component's own imports resolve against the stub.
+`pip install -r requirements-test.txt`, then `python -m pytest` from the root, runs the
+suite in `tests/`. That file is **pytest and `requests`** — no Home Assistant, no
+network. `tests/klereo_stub.py` installs fake `homeassistant.*` modules into
+`sys.modules`, and `tests/conftest.py` imports it before anything else so the component's
+own imports resolve against the stub. **`requests` is deliberately not stubbed**: it is
+the integration's own runtime dependency, `manifest.json` declares it, four modules
+import it at module scope, and the `KlereoAPI` suites drive the real library with a
+monkeypatched session rather than a fake exception hierarchy.
 The stub also carries the fakes the suites drive the code with: `Api` (records every
 call and can be told what `command_status` should answer), `Coordinator`, `Hass` (whose
 `keep_tasks`/`run_tasks` let a test step through a background confirmation) and

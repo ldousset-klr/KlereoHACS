@@ -1,0 +1,6 @@
+# Everything the suite in tests/ needs. Home Assistant is stubbed out
+# (tests/klereo_stub.py); requests is not, being the integration's own runtime
+# dependency — manifest.json declares it, and the KlereoAPI suites drive the
+# real library with a monkeypatched session.
+pytest
+requests

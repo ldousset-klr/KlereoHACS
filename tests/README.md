@@ -1,7 +1,12 @@
 # Tests
 
-`python -m pytest` from the repository root. **Nothing but pytest is required** — no
-Home Assistant, no `requests`, no network, no pool.
+```bash
+pip install -r requirements-test.txt
+python -m pytest
+```
+
+from the repository root. That file is **pytest and `requests`** — no Home Assistant, no
+network, no pool.
 
 ## How it works
 
@@ -20,6 +25,11 @@ with:
 
 `conftest.py` patches `asyncio.sleep` to a no-op, so the seven `COMMAND_POLL_DELAYS`
 waits cost nothing.
+
+`requests` is **not** stubbed. It is the integration's own runtime dependency —
+`manifest.json` declares it and four modules import it at module scope — and
+`test_setparam.py` and `test_wait.py` drive the real library with a monkeypatched
+session, which a fake exception hierarchy would not exercise.
 
 Assertions go through the `check` fixture, not bare `assert`: it records every failure
 and reports them together at the end, so one run tells you everything that broke rather

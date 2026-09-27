@@ -25,9 +25,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install pytest
+      - run: pip install -r requirements-test.txt
       # The suites stub Home Assistant out (tests/klereo_stub.py), so nothing
-      # here installs homeassistant or requests.
+      # here installs it. `requests` is not stubbed — it is the integration's
+      # own runtime dependency and the KlereoAPI suites drive the real library.
       - run: python -m pytest
 
   hassfest:
