@@ -17,17 +17,20 @@ All source paths below are relative to `custom_components/klereo/`.
 ## Testing changes
 
 `pip install -r requirements-test.txt`, then `python -m pytest` from the root, runs the
-suite in `tests/`. That file is **pytest and `requests`** — no Home Assistant, no
-network. `tests/klereo_stub.py` installs fake `homeassistant.*` modules into
+suite in `tests/`. That file is **pytest, `requests` and `voluptuous`** — no Home
+Assistant, no network. `tests/klereo_stub.py` installs fake `homeassistant.*` modules into
 `sys.modules`, and `tests/conftest.py` imports it before anything else so the component's
 own imports resolve against the stub. **`requests` is deliberately not stubbed**: it is
 the integration's own runtime dependency, `manifest.json` declares it, four modules
 import it at module scope, and the `KlereoAPI` suites drive the real library with a
-monkeypatched session rather than a fake exception hierarchy.
+monkeypatched session rather than a fake exception hierarchy. `voluptuous` is real for
+the same reason: the flows build their forms with it, and `test_options.py` fills them
+in to check the defaults and the required fields.
 The stub also carries the fakes the suites drive the code with: `Api` (records every
 call and can be told what `command_status` should answer), `Coordinator`, `Hass` (whose
 `keep_tasks`/`run_tasks` let a test step through a background confirmation) and
-`FakeEntry`. `conftest.py` additionally patches `asyncio.sleep` to a no-op, so the seven
+`FakeEntry`, plus `ConfigEntries` and `ConfigEntryData` for the flows and the setup,
+and the `ConfigFlow`/`OptionsFlow` bases and selectors those import. `conftest.py` additionally patches `asyncio.sleep` to a no-op, so the seven
 `COMMAND_POLL_DELAYS` waits cost nothing.
 
 Assertions go through the `check` fixture rather than bare `assert`: it records every
@@ -94,12 +97,17 @@ credential disclosure, not just a connection failure.
   against a live capture before relying on them.
 - `__init__.py` — `async_setup_entry` builds the `KlereoAPI`, wraps `api.get_pool` in
   `hass.async_add_executor_job` (this is the bridge between HA's async world and the
-  blocking `requests` calls), and drives a `DataUpdateCoordinator` polling every
-  `UPDATE_INTERVAL` (300 s). Coordinator + api are stashed in
+  blocking `requests` calls), and drives a `DataUpdateCoordinator` polling at
+  `scan_interval(entry.options)` — `UPDATE_INTERVAL` (300 s) unless the options flow set
+  another, clamped to `SCAN_INTERVAL_MIN`..`MAX` (60..3600 s). Coordinator + api are stashed in
   `hass.data[DOMAIN][entry.entry_id]` for the platforms.
   `PLATFORMS = ["sensor", "switch", "number", "select"]`.
   The update callback maps `KlereoAuthError` to `ConfigEntryAuthFailed` (triggering the
   reauth flow) and `KlereoError`/`RequestException` to `UpdateFailed`.
+  `async_entry_updated` is the entry's update listener, and it **reloads only when the
+  interval changed**: Home Assistant calls it on every `async_update_entry`, the reauth
+  and reconfigure steps included, and those reload on their own — comparing the options
+  with the coordinator's `update_interval` is what keeps them from reloading twice.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
   pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
   Both platforms build it once in `async_setup_entry` and pass it to each entity. Optional
@@ -144,6 +152,15 @@ credential disclosure, not just a connection failure.
   The `user` step also takes the server, carried into the entry data and used by
   `list_pools()`, `_test_credentials()` and the coordinator alike, so a dev server is
   exercised end to end rather than only at setup.
+  `async_step_reconfigure` changes the server and the credentials of an existing entry,
+  validating them with a `get_pool()` on the **same poolID** before updating the entry
+  data and reloading; the pool is the `unique_id`, so it is not offered. The password is
+  **required again rather than carried over** — the credentials go wherever the server
+  points, and retyping it makes a new address a deliberate act. `KlereoOptionsFlow` holds
+  only the poll interval, in `entry.options` under `CONF_SCAN_INTERVAL`, as whole seconds;
+  connection details are entry data and belong to reconfigure, which is Home Assistant's
+  split between the two. Neither needs a migration: an entry without options polls every
+  300 s.
   The entry's `unique_id` is the poolID, so a pool can only be configured once;
   `async_setup_entry` backfills it on entries created before that existed. Entry data keeps
   the same three keys, so nothing migrates.
@@ -410,7 +427,7 @@ sends speed 1, and speeds 2-7 are reachable but not exposed by a plain switch. B
 `KlereoOut` keeps an optimistic `self._optimistic_state` (True/False/None) that `is_on`
 prefers over `out['status']`. It is cleared in `_handle_coordinator_update()`, so fresh
 server data always wins; a write also fires `coordinator.async_request_refresh()` so that
-handover happens in seconds rather than at the next 300 s poll.
+handover happens in seconds rather than at the next poll, 300 s away by default.
 
 `SetOut.php` also **silently rewrites one combination**: Manuel with `newState` 1 on outs
 2, 3, 4 or 8 is turned into `newState` 0 and queued anyway, the server appending `!` to

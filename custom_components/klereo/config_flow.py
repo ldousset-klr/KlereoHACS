@@ -1,6 +1,10 @@
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -8,7 +12,8 @@ from homeassistant.helpers.selector import (
 from requests import RequestException
 
 from .const import (DOMAIN,CONF_USERNAME,CONF_PASSWORD,CONF_POOLID,CONF_SERVER,
-                    DEF_POOLID,DEF_SERVER)
+                    CONF_SCAN_INTERVAL,DEF_POOLID,DEF_SERVER,
+                    SCAN_INTERVAL_MIN,SCAN_INTERVAL_MAX,scan_interval)
 from .klereo_api import KlereoAPI, KlereoAuthError, KlereoError
 
 import logging
@@ -16,6 +21,11 @@ LOGGER = logging.getLogger(__name__)
 
 class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return KlereoOptionsFlow()
 
     def __init__(self):
         self._reauth_entry = None
@@ -151,6 +161,41 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reconfigure(self, user_input=None):
+        """Change the server or the credentials without re-adding the pool.
+
+        The pool itself stays: it is the entry's unique_id, and the device and
+        every entity hang off it. The password is asked for again rather than
+        carried over, so pointing the stored credentials at a new server is a
+        deliberate act and not a side effect of editing the address.
+        """
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        errors = {}
+        if user_input is not None:
+            data = {
+                **entry.data,
+                CONF_USERNAME: user_input[CONF_USERNAME],
+                CONF_PASSWORD: user_input[CONF_PASSWORD],
+                CONF_SERVER: user_input.get(CONF_SERVER) or DEF_SERVER,
+            }
+            errors = await self._validate(data)
+            if not errors:
+                self.hass.config_entries.async_update_entry(entry, data=data)
+                await self.hass.config_entries.async_reload(entry.entry_id)
+                return self.async_abort(reason="reconfigure_successful")
+        data_schema = {
+            vol.Required(CONF_USERNAME, default=entry.data.get(CONF_USERNAME)): str,
+            vol.Required(CONF_PASSWORD): str,
+            vol.Optional(
+                CONF_SERVER, default=entry.data.get(CONF_SERVER) or DEF_SERVER
+            ): str,
+        }
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(data_schema),
+            errors=errors,
+        )
+
     def _entry_data(self, poolid):
         return {
             CONF_USERNAME: self._username,
@@ -184,3 +229,34 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         LOGGER.info(f"Verifying credentials for user '{username}' for pool #{poolid}")
         api = KlereoAPI(username, password, poolid, server)
         await self.hass.async_add_executor_job(api.get_pool)
+
+
+class KlereoOptionsFlow(config_entries.OptionsFlow):
+    """What changes how an entry runs, as opposed to what it connects to.
+
+    The server and the credentials are entry data, changed by the reconfigure
+    step; the options hold only the poll interval. Saving them fires the entry's
+    update listener, which reloads it on the new interval.
+    """
+
+    async def async_step_init(self, user_input=None):
+        if user_input is not None:
+            # The selector hands back a float; store whole seconds.
+            return self.async_create_entry(data={
+                **self.config_entry.options,
+                CONF_SCAN_INTERVAL: round(user_input[CONF_SCAN_INTERVAL]),
+            })
+        data_schema = {
+            vol.Required(
+                CONF_SCAN_INTERVAL, default=scan_interval(self.config_entry.options)
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=SCAN_INTERVAL_MIN,
+                    max=SCAN_INTERVAL_MAX,
+                    step=1,
+                    unit_of_measurement="s",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+        }
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(data_schema))

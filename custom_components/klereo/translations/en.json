@@ -31,6 +31,15 @@
           "username": "Username",
           "password": "Password"
         }
+      },
+      "reconfigure": {
+        "title": "Klereo Connect",
+        "description": "Change the server or the credentials this pool is reached with. Your password is sent to the server entered here.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "server": "Server (leave as is unless testing)"
+        }
       }
     },
     "error": {
@@ -40,7 +49,19 @@
     "abort": {
       "reauth_successful": "Re-authentication was successful.",
       "already_configured": "This pool is already configured.",
-      "no_pools": "This account has no pool."
+      "no_pools": "This account has no pool.",
+      "reconfigure_successful": "The connection settings were updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Klereo Connect",
+        "description": "How often the pool is read from the Klereo server. Each read is a request to Klereo, so a shorter interval costs more for little gain: water readings only change while the filtration runs.",
+        "data": {
+          "scan_interval": "Poll interval"
+        }
+      }
     }
   },
   "exceptions": {

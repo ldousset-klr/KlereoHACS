@@ -27,6 +27,41 @@ for pkg in ('homeassistant', 'homeassistant.components', 'homeassistant.helpers'
 ce = _mod('homeassistant.config_entries')
 ce.ConfigEntry = object
 
+class _FlowHandler:
+    """What a flow step returns, as plain dicts a test can read."""
+    hass = None
+    def async_show_form(self, *, step_id, data_schema=None, errors=None,
+                        description_placeholders=None):
+        return {'type': 'form', 'step_id': step_id, 'data_schema': data_schema,
+                'errors': errors or {}}
+    def async_create_entry(self, *, data, title=''):
+        return {'type': 'create_entry', 'title': title, 'data': data}
+    def async_abort(self, *, reason):
+        return {'type': 'abort', 'reason': reason}
+
+class _AbortFlow(Exception):
+    def __init__(self, reason): self.reason = reason; super().__init__(reason)
+ce.AbortFlow = _AbortFlow
+
+class ConfigFlow(_FlowHandler):
+    def __init_subclass__(cls, domain=None, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.domain = domain
+    context = {}
+    unique_id = None
+    async def async_set_unique_id(self, unique_id):
+        self.unique_id = unique_id
+    def _async_current_entries(self):
+        return list(self.hass.config_entries.entries)
+    def _abort_if_unique_id_configured(self):
+        if any(e.unique_id == self.unique_id for e in self._async_current_entries()):
+            raise _AbortFlow('already_configured')
+ce.ConfigFlow = ConfigFlow
+
+class OptionsFlow(_FlowHandler):
+    config_entry = None       # Home Assistant sets it; so does a test
+ce.OptionsFlow = OptionsFlow
+
 cv = _mod('homeassistant.helpers.config_validation')
 cv.config_entry_only_config_schema = lambda domain: None
 import homeassistant.helpers as _h
@@ -86,6 +121,43 @@ class State:
 
 dr = _mod('homeassistant.helpers.device_registry')
 dr.DeviceInfo = dict
+
+sel = _mod('homeassistant.helpers.selector')
+class _Selector:
+    """Keeps its config, so a test can read the bounds a form offers."""
+    def __init__(self, config): self.config = config
+    def __call__(self, value): return value
+for _name in ('Select', 'Number'):
+    setattr(sel, f'{_name}Selector', type(f'{_name}Selector', (_Selector,), {}))
+    setattr(sel, f'{_name}SelectorConfig', dict)     # TypedDicts in Home Assistant
+sel.SelectSelectorMode = enum.Enum('SelectSelectorMode', {'LIST': 'list', 'DROPDOWN': 'dropdown'})
+sel.NumberSelectorMode = enum.Enum('NumberSelectorMode', {'BOX': 'box', 'SLIDER': 'slider'})
+
+class ConfigEntries:
+    """hass.config_entries: the entries, and a record of what was done to them."""
+    def __init__(self, entries=()):
+        self.entries = list(entries); self.calls = []
+    def async_get_entry(self, entry_id):
+        return next((e for e in self.entries if e.entry_id == entry_id), None)
+    def async_update_entry(self, entry, **changes):
+        self.calls.append(('update', entry.entry_id, changes))
+        for key, value in changes.items(): setattr(entry, key, value)
+        return True
+    async def async_reload(self, entry_id):
+        self.calls.append(('reload', entry_id))
+    async def async_forward_entry_setups(self, entry, platforms):
+        self.calls.append(('forward', entry.entry_id, tuple(platforms)))
+
+class ConfigEntryData:
+    """A config entry's stored side: data, options, unique_id and its listeners."""
+    def __init__(self, data, options=None, entry_id='e', unique_id=None, title='T'):
+        self.data = dict(data); self.options = dict(options or {})
+        self.entry_id = entry_id; self.unique_id = unique_id; self.title = title
+        self.listeners = []; self.on_unload = []
+    def add_update_listener(self, listener):
+        self.listeners.append(listener)
+        return lambda: self.listeners.remove(listener)
+    def async_on_unload(self, func): self.on_unload.append(func)
 
 class FakeEntry:
     """Comme ConfigEntry : garde ses tâches de fond et les annule au unload."""

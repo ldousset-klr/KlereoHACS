@@ -57,14 +57,14 @@ One device per pool, named after its Klereo nickname, carrying:
   in seconds; they are published **in hours**, so a pump running since spring reads
   `912 h` rather than `3283200`. A counter the controller does not report — the heating on
   a pool with none — simply has no sensor. The water volume ships **disabled**, being a
-  fixed property of the pool rather than something to record every five minutes — enable it
+  fixed property of the pool rather than something to record at every refresh — enable it
   on the device page if you want it.
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
 back to the controller's own name for that slot — *Température eau*, *Capteur pH*,
 *Filtration* — rather than an opaque index.
 
-Data refreshes every 5 minutes.
+Data refreshes every 5 minutes by default; see *Configuration* to change it.
 
 ## Installation
 
@@ -88,6 +88,16 @@ you can read from https://connect.klereo.fr/php/GetIndex.php
 The *Server* field on the first screen exists for testing against another Klereo instance.
 Leave it alone unless you know why you are changing it — **your credentials are sent to
 whatever address it holds**.
+
+Once the pool is added, two menus on its entry change it without removing it — and so
+without losing its entities or their history:
+
+- **Configure** sets the **poll interval**, between 60 seconds and one hour, 5 minutes by
+  default. Every refresh is a request to the Klereo server, and water readings only move
+  while the filtration runs, so a shorter interval costs more than it shows.
+- **Reconfigure** changes the **server** and the **credentials**. The password is asked for
+  again every time, since it will be sent to the server entered there; the new settings
+  are checked against the same pool before they are saved.
 
 Writing anything — a switch, a mode, a speed, the setpoint — is **queued rather than
 applied**: Klereo hands the command to the pool controller, which picks it up a moment
@@ -328,7 +338,7 @@ a lag of seconds before a read confirms it.
 
 The repository carries a pytest suite under [`tests/`](tests/). It runs the component
 against a stub Home Assistant, so it needs no Home Assistant install, no network and no
-pool — just pytest and the integration's own `requests`:
+pool — just pytest, the integration's own `requests`, and `voluptuous` for the setup forms:
 
 ```bash
 pip install -r requirements-test.txt
@@ -344,13 +354,10 @@ config flow's UI or the real HTTP calls. Those still want a real install.
 
 ## Todo
 
-Writing the outputs and a mode selector on them are done — every output now carries its
-rules, and only a heating or disinfectant whose controller does not say what it drives
-stays read-only. What is left:
+Writing the outputs, a mode selector on them, and changing an entry's poll interval,
+server and credentials in place are done — every output now carries its rules, and only
+a heating or disinfectant whose controller does not say what it drives stays read-only. What is left:
 
-- **An options flow**, so the server, the credentials and the poll interval can be
-  changed without removing and re-adding the pool.
-- **A configurable poll interval.** It is fixed at 5 minutes.
 - **The setpoint's real limits.** The control is bounded at 0–40 °C, which is a
   placeholder: the controller's own limits were never supplied, and `EauMin`/`EauMax` are
   the water probe's alarm thresholds, not the setpoint's. A reading outside the range

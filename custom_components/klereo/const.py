@@ -1,3 +1,4 @@
+import math
 from collections import namedtuple
 
 DOMAIN = "klereo"
@@ -5,6 +6,7 @@ CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_POOLID = "poolid"
 CONF_SERVER = "server"
+CONF_SCAN_INTERVAL = "scan_interval"
 DEF_POOLID = 0
 # Base URL of the Klereo Connect server, overridable per config entry so a dev
 # or staging server can be pointed at. KLEREO_PATH is appended by the API, and
@@ -12,6 +14,29 @@ DEF_POOLID = 0
 DEF_SERVER = "https://connect.klereo.fr"
 KLEREO_PATH = "/php"
 UPDATE_INTERVAL = 300
+# Bounds of the poll interval the options flow offers, in seconds. Every poll
+# is a GetPoolDetails on the Klereo server, multiplied by every Home Assistant
+# driving a pool, so the floor is a minute; past an hour the entities would be
+# more stale than useful.
+SCAN_INTERVAL_MIN = 60
+SCAN_INTERVAL_MAX = 3600
+
+
+def scan_interval(options):
+    """The poll interval an entry's options ask for, in seconds.
+
+    An entry created before the options flow existed has no such option and
+    polls every UPDATE_INTERVAL, so nothing migrates. A value that is not a
+    finite number, or falls outside the bounds, can only come from hand-edited
+    storage: it falls back to the default or is clamped, rather than breaking
+    the setup.
+    """
+    value = (options or {}).get(CONF_SCAN_INTERVAL)
+    if (not isinstance(value, (int, float)) or isinstance(value, bool)
+            or not math.isfinite(value)):
+        return UPDATE_INTERVAL
+    return round(min(max(value, SCAN_INTERVAL_MIN), SCAN_INTERVAL_MAX))
+
 HA_VERSION = "100-HA"
 HTTP_TIMEOUT = 30
 
