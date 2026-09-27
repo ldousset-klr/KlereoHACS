@@ -319,11 +319,11 @@ a lag of seconds before a read confirms it.
 ## Development
 
 The repository carries a pytest suite under [`tests/`](tests/). It runs the component
-against a stub Home Assistant, so it needs **pytest and nothing else** — no Home
-Assistant install, no network, no pool:
+against a stub Home Assistant, so it needs no Home Assistant install, no network and no
+pool — just pytest and the integration's own `requests`:
 
 ```bash
-pip install pytest
+pip install -r requirements-test.txt
 python -m pytest
 ```
 
