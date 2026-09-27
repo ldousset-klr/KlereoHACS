@@ -266,26 +266,35 @@ and length for provenance in the command log.
 answers one `{cmdID, poolID}` per matched system, so `GetPoolDetails` keeps reporting the
 old value until the pod fetches it. A success means *accepted*, never *applied*.
 
-`WaitCommand.php` turns that `cmdID` into a verdict. It takes `cmdID` alone, scopes its
-query to the issuing user, and needs no access level. Its `status` is the pod server's
-`CommandSender.h` enum, in `COMMAND_STATUS`: 0 and 1 are still pending, **9 alone is
-success**, and 10 upwards are named failures — the pod refusing on access, not being
-connected, needing a firmware update. **It answers `json_ok` even when it gives up**, its
-loop exiting on its own ceiling with the command still pending, so the caller must read
-that `status` rather than trust the envelope. Its `response` is a single object, not a
-list like the write endpoints'. It blocks for just under 25 s doing this (499 sleeps of
-50 ms; its own comment's arithmetic is wrong), which is why `WAIT_COMMAND_TIMEOUT` is 40
-and `_post()` takes a per-request timeout: at `HTTP_TIMEOUT`'s 30 the client could give up
-first and call a command failed that had succeeded.
+`CommandStatus.php` turns that `cmdID` into an answer. It takes an optional `cmdID`,
+scopes its query to the issuing user, needs no access level, and returns **at once** — one
+query, no loop. Its `status` is the pod server's `CommandSender.h` enum, in
+`COMMAND_STATUS`: 0 and 1 are still pending, **9 alone is success**, and 10 upwards are
+named failures — the pod refusing on access, not being connected, needing a firmware
+update. Its `response` is always a **list**; with a `cmdID` it holds that one row, and
+**without one the account's thirty most recent commands**, which is why the integration
+always sends it. An unknown or foreign `cmdID` comes back as an empty list rather than an
+error, so `command_status()` answers `None` instead of raising. Its `startTime` and
+`updateTime` are MySQL DATETIME strings, where `WaitCommand` converts the same columns to
+epoch seconds; nothing reads them.
+
+`WaitCommand.php` does the same job in a single call and is deliberately **not** used. It
+blocks for just under 25 s while polling its own row 500 times at 50 ms, holding a PHP
+worker and a MySQL connection throughout — a cost that lands on the Klereo server once per
+command and multiplies by every Home Assistant driving a pool. It would also pin an
+executor thread here for the duration. Polling `CommandStatus` on `COMMAND_POLL_DELAYS`
+(1, 2, 3, 5, 5, 5, 5 — seven requests over 26 s) costs the server seven short queries
+instead, and sleeping between them frees the thread.
 
 `KlereoCommandMixin` in `entity.py` follows every write. **The wait never blocks the
-service call** — 25 s on a switch press would be unusable — so it runs as a background
+service call** — 26 s on a switch press would be unusable — so it runs as a background
 task while the entity returns at once. That also removed the optimistic value's flicker:
 a write no longer refreshes immediately, which used to replace the optimistic value with a
 payload the pod had not updated yet. It refreshes once the command has landed. On a
-failure the optimistic value is dropped and the reason logged; on a confirmation timeout
-or an unreachable `WaitCommand` it is dropped too, since the command may well have been
-applied and only the confirmation failed — the payload is left to answer.
+failure the optimistic value is dropped and the reason logged; on a command the server
+does not know, an unreadable status or the delays running out it is dropped too, since the
+command may well have been applied and only the confirmation lost — the payload is left to
+answer.
 
 Two of its refusals are worth knowing. The server rejects the literal `NaN`, so
 `set_param()` refuses non-numbers and non-finite values before the round trip. And

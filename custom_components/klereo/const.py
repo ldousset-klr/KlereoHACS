@@ -15,13 +15,17 @@ UPDATE_INTERVAL = 300
 HA_VERSION = "100-HA"
 HTTP_TIMEOUT = 30
 
-# WaitCommand.php blocks server-side while it polls its Commands row: 499
-# sleeps of 50 ms, so just under 25 s. Its own comment says "400 * 50000us =
-# 25 sec", whose arithmetic gives 20 — the loop bound of 500 is what actually
-# lands near 25. This one request therefore needs a ceiling comfortably above
-# HTTP_TIMEOUT, or the client would give up first and report a failure for a
-# command that may well have succeeded.
-WAIT_COMMAND_TIMEOUT = 40
+# How long to keep asking CommandStatus whether a queued command has landed,
+# and how long to wait between asks. Seven requests over 26 s.
+#
+# CommandStatus is a plain query — no loop, no blocking — so the cadence is
+# ours to choose, and choosing it is the point. WaitCommand.php would do the
+# same job in one call, but it holds a PHP worker and a MySQL connection for
+# 25 s while polling its own row 500 times at 50 ms. That cost lands on the
+# Klereo server once per command and multiplies by every Home Assistant
+# driving a pool; and on this side it would pin an executor thread for the
+# duration, where sleeping between short requests frees it.
+COMMAND_POLL_DELAYS = (1, 2, 3, 5, 5, 5, 5)
 
 # Commands.status, from the pod server's CommandSender.h.
 #

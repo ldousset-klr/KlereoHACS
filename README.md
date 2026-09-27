@@ -156,7 +156,7 @@ documented; treat a 401 or 403 as "renew and retry once".
 | `GetPoolDetails.php` | `poolID`, `lang` | one system in full |
 | `SetOut.php` | `poolID`, `outIdx`, `newMode`, `newState` | acknowledgement |
 | `SetParam.php` | `poolID`, `paramID`, `newValue`, optional `label` and `comMode` | one `{cmdID, poolID}` per system |
-| `WaitCommand.php` | `cmdID` | that command's row, once the pod has answered or ~25 s have passed |
+| `CommandStatus.php` | optional `cmdID` | that command's row, or the account's 30 most recent commands |
 
 ### Response envelope
 

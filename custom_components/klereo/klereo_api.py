@@ -1,8 +1,7 @@
 import logging
 import requests
 import hashlib
-from .const import (DEF_SERVER, KLEREO_PATH, HA_VERSION, HTTP_TIMEOUT,
-                    WAIT_COMMAND_TIMEOUT)
+from .const import DEF_SERVER, KLEREO_PATH, HA_VERSION, HTTP_TIMEOUT
 
 LOGGER = logging.getLogger(__name__)
 
@@ -100,25 +99,20 @@ class KlereoAPI:
         self.jwt = jwt
         return self.jwt
 
-    def _post(self, endpoint, payload=None, retry_auth=True, timeout=None):
-        """POST an authenticated request, renewing the JWT once if it is refused.
-
-        `timeout` overrides HTTP_TIMEOUT for the one endpoint that blocks on
-        purpose; everything else leaves it alone.
-        """
+    def _post(self, endpoint, payload=None, retry_auth=True):
+        """POST an authenticated request, renewing the JWT once if it is refused."""
         if not self.jwt:
             self.get_jwt()
         url = f"{self.base_url}/{endpoint}"
         headers = {
             'Authorization': f'Bearer {self.jwt}'
         }
-        response = self.session.post(url, headers=headers, data=payload,
-                                     timeout=timeout or HTTP_TIMEOUT)
+        response = self.session.post(url, headers=headers, data=payload, timeout=HTTP_TIMEOUT)
         if response.status_code in (401, 403):
             if retry_auth:
                 LOGGER.info("JWT refused by %s (HTTP %s), renewing it", endpoint, response.status_code)
                 self.jwt = None
-                return self._post(endpoint, payload, retry_auth=False, timeout=timeout)
+                return self._post(endpoint, payload, retry_auth=False)
             raise KlereoAuthError(f"{endpoint} refused the JWT (HTTP {response.status_code})")
         response.raise_for_status()
         data = self._parse(response, endpoint)
@@ -129,7 +123,7 @@ class KlereoAPI:
             if retry_auth:
                 LOGGER.info("JWT looks expired (%s said: %s), renewing it", endpoint, error)
                 self.jwt = None
-                return self._post(endpoint, payload, retry_auth=False, timeout=timeout)
+                return self._post(endpoint, payload, retry_auth=False)
             raise KlereoAuthError(f"{endpoint} refused the JWT: {error}")
         raise KlereoError(f"{endpoint} failed: {error}")
 
@@ -231,29 +225,31 @@ class KlereoAPI:
         LOGGER.info(f"rep={rep}")
         return rep
 
-    def wait_command(self, cmd_id):
-        """Wait for a queued command to reach a terminal state, and say which.
+    def command_status(self, cmd_id):
+        """Where a queued command has got to, or None if the server has no such row.
 
-        Returns the Commands row: cmdID, status, startTime, updateTime, detail.
-        **The caller must read that status.** The endpoint answers json_ok even
-        when it gives up — its loop also exits on its own 25 s ceiling with the
-        command still pending — so a successful call means only that the
-        question was asked. `status < COMMAND_DONE` is "still waiting", not
-        "failed".
+        CommandStatus answers at once — one query, no loop — so the caller sets
+        its own cadence rather than holding a request open. Its `response` is
+        always a **list**, unlike WaitCommand's single object: with a cmdID it
+        holds that one row, and without one the account's thirty most recent
+        commands, which is not something this integration asks for.
 
-        Unlike the write endpoints, `response` here is a single object rather
-        than a list, since the server passes one row to json_ok.
+        An unknown cmdID, or one belonging to another account, comes back as an
+        empty list rather than an error — hence None rather than a raise.
+
+        The row carries cmdID, status, startTime, updateTime and detail. Note
+        its timestamps are MySQL DATETIME strings here where WaitCommand
+        converts them to epoch seconds; nothing reads them either way.
         """
-        rep = self._post("WaitCommand.php", {'cmdID': cmd_id},
-                         timeout=WAIT_COMMAND_TIMEOUT)
-        row = self._unwrap(rep, "WaitCommand.php")
-        if isinstance(row, list):
-            # Not what the source does today, but indexing a list as a dict
-            # would be a confusing crash if that ever changed.
-            row = row[0] if row else {}
-        if not isinstance(row, dict):
-            raise KlereoError(f"WaitCommand.php returned {type(row).__name__}, not a row")
-        return row
+        rep = self._post("CommandStatus.php", {'cmdID': cmd_id})
+        rows = self._unwrap(rep, "CommandStatus.php")
+        if not isinstance(rows, list):
+            raise KlereoError(
+                f"CommandStatus.php returned {type(rows).__name__}, not a list")
+        for row in rows:
+            if isinstance(row, dict) and row.get("cmdID") in (cmd_id, str(cmd_id)):
+                return row
+        return None
 
     @staticmethod
     def command_id(reply):
