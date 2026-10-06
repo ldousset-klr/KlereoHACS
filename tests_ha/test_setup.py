@@ -72,28 +72,28 @@ async def test_entities(hass, loaded):
 
 
 async def test_states(hass, loaded):
-    state = hass.states.get("sensor.eau_bassin")          # named by IORename
+    state = hass.states.get("sensor.test_pool_eau_bassin")          # named by IORename
     assert state.state == "26.5"
     assert state.attributes["unit_of_measurement"] == "°C"
     assert state.attributes["device_class"] == "temperature"
-    assert hass.states.get("sensor.capteur_ph").state == "7.2"      # PROBE_LABELS
-    assert hass.states.get("sensor.capteur_redox").attributes["unit_of_measurement"] == "mV"
+    assert hass.states.get("sensor.test_pool_capteur_ph").state == "7.2"      # PROBE_LABELS
+    assert hass.states.get("sensor.test_pool_capteur_redox").attributes["unit_of_measurement"] == "mV"
     # -1000 is an absent probe: unknown, not a reading of -1000 mbar.
-    assert hass.states.get("sensor.pression_gen2_a").state == "unknown"
+    assert hass.states.get("sensor.test_pool_pression_gen2_a").state == "unknown"
 
-    assert hass.states.get("switch.spots").state == "off"
-    assert hass.states.get("switch.filtration").state == "on"        # speed 2
-    assert hass.states.get("number.filtration_speed").state == "2"
-    assert hass.states.get("number.water_setpoint").state == "27.5"
-    heating = hass.states.get("select.chauffage_mode")
+    assert hass.states.get("switch.test_pool_spots").state == "off"
+    assert hass.states.get("switch.test_pool_filtration").state == "on"        # speed 2
+    assert hass.states.get("number.test_pool_filtration_speed").state == "2"
+    assert hass.states.get("number.test_pool_water_setpoint").state == "27.5"
+    heating = hass.states.get("select.test_pool_chauffage_mode")
     assert heating.state == "Régulé"
     assert heating.attributes["options"] == ["Manuel", "Régulé"]
 
-    volume = hass.states.get("sensor.ph_corrector_volume")
+    volume = hass.states.get("sensor.test_pool_ph_corrector_volume")
     assert volume.state == "1500"            # 3600 s x 1.5 L/h
     assert volume.attributes["unit_of_measurement"] == "mL"
     assert volume.attributes["state_class"] == "total_increasing"
-    assert hass.states.get("sensor.filtration_runtime").state == "10.0"
+    assert hass.states.get("sensor.test_pool_filtration_runtime").state == "10.0"
 
 
 async def test_registry_flags(hass, loaded):
@@ -116,9 +116,9 @@ async def test_polls_on_the_default_interval(hass, api, loaded):
     assert _coordinator(hass, loaded).update_interval == timedelta(seconds=300)
     api.pool["probes"][0]["filteredValue"] = 27.0
     await _jump(hass, 240)
-    assert hass.states.get("sensor.eau_bassin").state == "26.5"
+    assert hass.states.get("sensor.test_pool_eau_bassin").state == "26.5"
     await _jump(hass, 330)
-    assert hass.states.get("sensor.eau_bassin").state == "27.0"
+    assert hass.states.get("sensor.test_pool_eau_bassin").state == "27.0"
 
 
 async def test_options_change_reloads_on_the_new_interval(hass, api, loaded):
@@ -135,9 +135,9 @@ async def test_options_change_reloads_on_the_new_interval(hass, api, loaded):
     # And the new interval is the one Home Assistant schedules.
     api.pool["probes"][0]["filteredValue"] = 27.0
     await _jump(hass, 330)
-    assert hass.states.get("sensor.eau_bassin").state == "26.5"
+    assert hass.states.get("sensor.test_pool_eau_bassin").state == "26.5"
     await _jump(hass, 930)
-    assert hass.states.get("sensor.eau_bassin").state == "27.0"
+    assert hass.states.get("sensor.test_pool_eau_bassin").state == "27.0"
 
 
 async def test_data_update_does_not_reload(hass, loaded):
@@ -153,7 +153,7 @@ async def test_unload(hass, loaded):
     await hass.async_block_till_done()
     assert loaded.state is ConfigEntryState.NOT_LOADED
     assert loaded.entry_id not in hass.data[DOMAIN]
-    assert hass.states.get("switch.spots").state == "unavailable"
+    assert hass.states.get("switch.test_pool_spots").state == "unavailable"
 
 
 async def test_bad_credentials_start_reauth(hass, api, entry):

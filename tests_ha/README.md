@@ -34,6 +34,11 @@ write's confirmation run as **background tasks of the entry**, which
 And a jump of the clock is taken from now while the poll timer was armed at setup, so
 keep a wide margin either side of an interval rather than a second.
 
+`requirements-min.txt` pins two things Home Assistant 2024.11 left loose and that broke
+later: `josepy<2` for its `acme`, and `pycares==4.4.0` for its `aiodns` — pycares 5 starts
+a shutdown thread the harness's cleanup check reports as lingering after any test that
+opens an HTTP client.
+
 These are ordinary pytest tests with plain `assert`, one scenario each — the `check`
 fixture of `tests/` is for tables, which this suite does not hold.
 
@@ -42,6 +47,8 @@ fixture of `tests/` is for tables, which this suite does not hold.
 | `test_setup.py` | the device and its fields; every entity by `unique_id`; states, units and classes; which entities ship disabled or diagnostic; polling on the default interval; an options change reloading onto the new one, which Home Assistant then schedules; a data update not reloading; unload; bad credentials starting reauth; a server down retrying; the `unique_id` backfill |
 | `test_config_flow.py` | the user → pool path, a configured pool not offered again, bad credentials, no pools, the fallback to the manual poolID, a pool unreachable after listing; reauth; reconfigure, refused and missing its password; the options flow and its bounds |
 | `test_services.py` | a switch's full round trip; a regulated output refusing with its translated message; a mode change keeping the state; the setpoint rounded to a tenth; the filtration speed; a read-only account and the level-16 treatment outputs refused before anything is sent |
+| `test_naming.py` | a new install's entity_ids and friendly names prefixed with the pool's; an upgrade keeping its existing entity_ids; two pools no longer colliding on `sensor.pin` / `sensor.pin_2` |
+| `test_diagnostics.py` | the download, over the real HTTP route: credentials, title, serial, PIN and nickname redacted; what the integration reads kept as read; an address, an email, a phone and an IBAN planted in the payload never reaching the file |
 | `test_translations.py` | every step, error, abort, option and exception key, in English and French, through Home Assistant's own translation loader |
 
 ## What it caught first

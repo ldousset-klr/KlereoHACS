@@ -62,7 +62,11 @@ One device per pool, named after its Klereo nickname, carrying:
 
 Entities are named after the names you set in Klereo. Anything you never renamed falls
 back to the controller's own name for that slot — *Température eau*, *Capteur pH*,
-*Filtration* — rather than an opaque index.
+*Filtration* — rather than an opaque index. Every name is prefixed with the pool's, so
+*Spots* on the pool *Maison* shows as *Maison Spots*, as `switch.maison_spots`; two pools
+no longer end up with `sensor.pin` and `sensor.pin_2`. Entities added before 1.5.0 keep
+their entity IDs — and so their history and automations — and only gain the prefix on
+screen.
 
 Data refreshes every 5 minutes by default; see *Configuration* to change it.
 
@@ -98,6 +102,12 @@ without losing its entities or their history:
 - **Reconfigure** changes the **server** and the **credentials**. The password is asked for
   again every time, since it will be sent to the server entered there; the new settings
   are checked against the same pool before they are saved.
+
+**Download diagnostics**, in the same ⋮ menu, saves what Home Assistant received from
+Klereo to a JSON file, ready to attach to a GitHub issue. It holds only what the
+integration reads — probes, outputs, settings — with your username, password, pod serial,
+PIN and pool name masked; anything else the controller sends, such as an address, is
+listed by name only.
 
 Writing anything — a switch, a mode, a speed, the setpoint — is **queued rather than
 applied**: Klereo hands the command to the pool controller, which picks it up a moment

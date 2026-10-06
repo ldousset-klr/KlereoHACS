@@ -51,6 +51,7 @@ class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEnti
     which is also how it survives a Home Assistant restart.
     """
 
+    _attr_has_entity_name = True   # "<pool> <name>": see klereo_device_info()
 
     def __init__(self, api, coordinator, out, poolid, device_info, klereo_name=None):
         super().__init__(coordinator)

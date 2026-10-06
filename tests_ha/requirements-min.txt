@@ -4,3 +4,8 @@ pytest-homeassistant-custom-component==0.13.181
 # That Home Assistant's acme dependency predates josepy 2, which removed
 # ComparableX509; unpinned, pip resolves josepy 2 and the import fails.
 josepy<2
+# Its aiodns 3.2.0 leaves pycares unpinned, and pycares 5 starts a shutdown
+# thread the harness's cleanup check reports as lingering after any test that
+# opens an HTTP client — the diagnostics download does. 4.4.0 is what that
+# Home Assistant shipped with.
+pycares==4.4.0

@@ -21,8 +21,9 @@ suite in `tests/`. That file is **pytest, `requests` and `voluptuous`** — no H
 Assistant, no network. `tests/klereo_stub.py` installs fake `homeassistant.*` modules into
 `sys.modules`, and `tests/conftest.py` imports it before anything else so the component's
 own imports resolve against the stub. **`requests` is deliberately not stubbed**: it is
-the integration's own runtime dependency, `manifest.json` declares it, four modules
-import it at module scope, and the `KlereoAPI` suites drive the real library with a
+the integration's own runtime dependency — Home Assistant itself ships it, which is why
+`manifest.json` lists **no requirements** (hassfest rejects a core dependency there) — four
+modules import it at module scope, and the `KlereoAPI` suites drive the real library with a
 monkeypatched session rather than a fake exception hierarchy. `voluptuous` is real for
 the same reason: the flows build their forms with it, and `test_options.py` fills them
 in to check the defaults and the required fields.
@@ -70,7 +71,9 @@ the UI config flow (username / password / poolID), and read the logs. Everything
 `.github/workflows/validate.yml` runs **pytest** (on Python 3.12 and 3.13), the
 **`tests_ha/` suite** (Home Assistant 2024.11.0 and latest), **hassfest** and the
 **HACS action** on every push to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
-`domain`, `name`, then alphabetical, and an integration defining `async_setup` must also
+`domain`, `name`, then alphabetical; `requirements` must not list a package Home
+Assistant itself depends on — `requests` sat there until hassfest started rejecting it in
+October 2026, failing a weekly run with no commit of ours; and an integration defining `async_setup` must also
 define a `CONFIG_SCHEMA` — this one has neither, being config-entry only, and declares
 `cv.config_entry_only_config_schema(DOMAIN)`. The HACS action additionally requires the
 repository itself to carry a description, topics and a license, none of which live in the
@@ -126,6 +129,17 @@ credential disclosure, not just a connection failure.
   interval changed**: Home Assistant calls it on every `async_update_entry`, the reauth
   and reconfigure steps included, and those reload on their own — comparing the options
   with the coordinator's `update_interval` is what keeps them from reloading twice.
+- `diagnostics.py` — the **Download diagnostics** file. **The pool payload is kept by
+  allowlist, not redacted by denylist**: `PAYLOAD_KEYS` names the top-level keys the
+  integration reads, every other key is listed by name in `pool_other_keys` and never
+  shown, because `GetPoolDetails` carries the owner's address, the installer and the
+  billing and nobody has enumerated all of it. Kept keys that still identify someone —
+  `poolNickname` (also the entry's title), `podSerial`, `register` — go through
+  `async_redact_data` with the credentials, so they read `**REDACTED**` rather than
+  vanish. **A top-level key the integration starts reading must be added to
+  `PAYLOAD_KEYS`**, or it will be missing from every diagnostics file; `tests_ha/
+  test_diagnostics.py` plants an address, an email and an IBAN and checks none reaches
+  the download.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
   pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
   Both platforms build it once in `async_setup_entry` and pass it to each entity. Optional
@@ -226,7 +240,13 @@ credential disclosure, not just a connection failure.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
   re-scan `coordinator.data` on every property read rather than caching. Each entity keeps
-  `_key` (`klereo<poolid>probe<index>`) separate from `_name`: **`unique_id` is built from
+  `_key` (`klereo<poolid>probe<index>`) separate from `_name`. **Every entity class sets
+  `_attr_has_entity_name = True`**, so Home Assistant shows "<pool> <name>" and builds a
+  new entity_id from both — `sensor.<pool>_pin`, where a bare `sensor.pin` became
+  `sensor.pin_2` on a second pool. `_name` must therefore **not** contain the pool's name.
+  An entity already in the registry keeps its entity_id, held by `unique_id`; only its
+  friendly name gains the prefix. `tests/test_naming.py` checks every class carries the
+  flag. **`unique_id` is built from
   `_key` and must never follow the name**, or renaming a probe in Klereo would orphan the
   entity and lose its history. `_name` is the `IORename` label when there is one, else
   `_key`. `KlereoOut` is also a `RestoreEntity`, for the filtration alone: turning that

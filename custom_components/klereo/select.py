@@ -45,6 +45,7 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
     output, which is the firmware's own rule and not this entity's choice.
     """
 
+    _attr_has_entity_name = True   # "<pool> <name>": see klereo_device_info()
     _attr_icon = ICON_OUT_MODE
 
     def __init__(self, api, coordinator, out, poolid, device_info, klereo_name=None):

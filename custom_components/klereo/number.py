@@ -71,6 +71,7 @@ def _filtration_speed(api, coordinator, pool_data, poolid, device_info):
 class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
     """The filtration out's status read and written as a speed index."""
 
+    _attr_has_entity_name = True   # "<pool> <name>": see klereo_device_info()
     _attr_icon = ICON_FILTRATION_SPEED
     _attr_native_min_value = 0
     _attr_native_step = 1
@@ -181,6 +182,7 @@ class KlereoWaterSetpoint(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
     not reached the pod yet may show the old value again for a moment.
     """
 
+    _attr_has_entity_name = True   # "<pool> <name>": see klereo_device_info()
     _attr_device_class = "temperature"
     _attr_native_unit_of_measurement = "°C"
     _attr_native_min_value = SETPOINT_MIN
