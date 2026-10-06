@@ -1,6 +1,6 @@
 # Everything the suite in tests/ needs. Home Assistant is stubbed out
 # (tests/klereo_stub.py); requests is not, being the integration's own runtime
-# dependency — manifest.json declares it, and the KlereoAPI suites drive the
+# dependency, shipped by Home Assistant itself, and the KlereoAPI suites drive the
 # real library with a monkeypatched session. voluptuous is not stubbed either:
 # the config and options flows build their forms with it, and the suites fill
 # those forms in to check their defaults and required fields.

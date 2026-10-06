@@ -33,7 +33,8 @@ with:
 waits cost nothing.
 
 `requests` is **not** stubbed. It is the integration's own runtime dependency —
-`manifest.json` declares it and four modules import it at module scope — and
+Home Assistant ships it, hence no `requirements` in `manifest.json`, and four modules import
+it at module scope — and
 `test_setparam.py` and `test_wait.py` drive the real library with a monkeypatched
 session, which a fake exception hierarchy would not exercise. `voluptuous` is real too:
 `test_options.py` fills the flows' forms in, which checks their defaults and required

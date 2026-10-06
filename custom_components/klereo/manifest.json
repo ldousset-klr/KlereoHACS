@@ -7,6 +7,6 @@
     "documentation": "https://connect.klereo.fr/software/whatsnew.html",
     "iot_class": "cloud_polling",
     "issue_tracker": "https://github.com/ldousset-klr/KlereoHACS/issues",
-    "requirements": ["requests"],
+    "requirements": [],
     "version": "1.4.1"
 }

@@ -21,8 +21,9 @@ suite in `tests/`. That file is **pytest, `requests` and `voluptuous`** — no H
 Assistant, no network. `tests/klereo_stub.py` installs fake `homeassistant.*` modules into
 `sys.modules`, and `tests/conftest.py` imports it before anything else so the component's
 own imports resolve against the stub. **`requests` is deliberately not stubbed**: it is
-the integration's own runtime dependency, `manifest.json` declares it, four modules
-import it at module scope, and the `KlereoAPI` suites drive the real library with a
+the integration's own runtime dependency — Home Assistant itself ships it, which is why
+`manifest.json` lists **no requirements** (hassfest rejects a core dependency there) — four
+modules import it at module scope, and the `KlereoAPI` suites drive the real library with a
 monkeypatched session rather than a fake exception hierarchy. `voluptuous` is real for
 the same reason: the flows build their forms with it, and `test_options.py` fills them
 in to check the defaults and the required fields.
@@ -70,7 +71,9 @@ the UI config flow (username / password / poolID), and read the logs. Everything
 `.github/workflows/validate.yml` runs **pytest** (on Python 3.12 and 3.13), the
 **`tests_ha/` suite** (Home Assistant 2024.11.0 and latest), **hassfest** and the
 **HACS action** on every push to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
-`domain`, `name`, then alphabetical, and an integration defining `async_setup` must also
+`domain`, `name`, then alphabetical; `requirements` must not list a package Home
+Assistant itself depends on — `requests` sat there until hassfest started rejecting it in
+October 2026, failing a weekly run with no commit of ours; and an integration defining `async_setup` must also
 define a `CONFIG_SCHEMA` — this one has neither, being config-entry only, and declares
 `cv.config_entry_only_config_schema(DOMAIN)`. The HACS action additionally requires the
 repository itself to carry a description, topics and a license, none of which live in the
