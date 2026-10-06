@@ -32,6 +32,7 @@ def api(monkeypatch):
     """The fake server, patched in wherever the component builds a KlereoAPI."""
     FakeKlereoAPI.pool = copy.deepcopy(POOL)
     FakeKlereoAPI.pools = [(POOLID, "Test pool"), (116, "Other pool")]
+    FakeKlereoAPI.others = {}
     FakeKlereoAPI.error = FakeKlereoAPI.list_error = None
     FakeKlereoAPI.made = []
     FakeKlereoAPI.calls = []

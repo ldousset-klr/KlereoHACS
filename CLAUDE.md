@@ -129,6 +129,17 @@ credential disclosure, not just a connection failure.
   interval changed**: Home Assistant calls it on every `async_update_entry`, the reauth
   and reconfigure steps included, and those reload on their own — comparing the options
   with the coordinator's `update_interval` is what keeps them from reloading twice.
+- `diagnostics.py` — the **Download diagnostics** file. **The pool payload is kept by
+  allowlist, not redacted by denylist**: `PAYLOAD_KEYS` names the top-level keys the
+  integration reads, every other key is listed by name in `pool_other_keys` and never
+  shown, because `GetPoolDetails` carries the owner's address, the installer and the
+  billing and nobody has enumerated all of it. Kept keys that still identify someone —
+  `poolNickname` (also the entry's title), `podSerial`, `register` — go through
+  `async_redact_data` with the credentials, so they read `**REDACTED**` rather than
+  vanish. **A top-level key the integration starts reading must be added to
+  `PAYLOAD_KEYS`**, or it will be missing from every diagnostics file; `tests_ha/
+  test_diagnostics.py` plants an address, an email and an IBAN and checks none reaches
+  the download.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
   pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
   Both platforms build it once in `async_setup_entry` and pass it to each entity. Optional
@@ -229,7 +240,13 @@ credential disclosure, not just a connection failure.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
   re-scan `coordinator.data` on every property read rather than caching. Each entity keeps
-  `_key` (`klereo<poolid>probe<index>`) separate from `_name`: **`unique_id` is built from
+  `_key` (`klereo<poolid>probe<index>`) separate from `_name`. **Every entity class sets
+  `_attr_has_entity_name = True`**, so Home Assistant shows "<pool> <name>" and builds a
+  new entity_id from both — `sensor.<pool>_pin`, where a bare `sensor.pin` became
+  `sensor.pin_2` on a second pool. `_name` must therefore **not** contain the pool's name.
+  An entity already in the registry keeps its entity_id, held by `unique_id`; only its
+  friendly name gains the prefix. `tests/test_naming.py` checks every class carries the
+  flag. **`unique_id` is built from
   `_key` and must never follow the name**, or renaming a probe in Klereo would orphan the
   entity and lose its history. `_name` is the `IORename` label when there is one, else
   `_key`. `KlereoOut` is also a `RestoreEntity`, for the filtration alone: turning that

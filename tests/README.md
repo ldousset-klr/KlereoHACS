@@ -68,6 +68,7 @@ release, still install the component in a running Home Assistant and read the lo
 | `test_floc.py` | the flocculant's two modes, its Manuel that stops the pump, and its "Volume fixe" wording |
 | `test_heat.py` | `params.HeaterMode` selecting the heating's modes and their names — mode 3 is "Régulé" on a heater and "Réchauffe" on a heat pump; no `HeaterMode` means read-only |
 | `test_hybrid.py` | hybrid chlorine's single permitted mode, and the switch that is the real gain over it |
+| `test_naming.py` | every entity class sets `has_entity_name`, so each is named after its pool |
 | `test_modes.py` | the mode select in general: options offered, a reserved mode reported as `None`, `newState` = keep on a write, and the switch's refusals |
 | `test_options.py` | the poll interval — default, clamping, junk in storage; the options form's bounds and the whole seconds it stores; reconfigure validating the new server on the same poolID, requiring the password again, and leaving the entry alone on a refusal; the update listener reloading on an interval change only; every new step and abort translated in both languages |
 | `test_ph.py` | the pH corrector's modes, the `newState` each one sends, and the error text naming the entity as the user sees it |

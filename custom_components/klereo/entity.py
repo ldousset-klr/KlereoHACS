@@ -24,6 +24,12 @@ def klereo_device_info(pool_data, poolid) -> DeviceInfo:
 
     Fields the payload may omit are only set when present, so a missing one
     leaves the device registry untouched instead of showing the string "None".
+
+    Its name also prefixes every entity's: they all set has_entity_name, so
+    Home Assistant shows "<pool> <entity>" and builds a new entity_id from both
+    — sensor.<pool>_pin rather than a bare sensor.pin that a second pool turns
+    into sensor.pin_2. An entity already registered keeps its entity_id, the
+    registry holding it by unique_id; only its displayed name gains the prefix.
     """
     info = DeviceInfo(
         identifiers={(DOMAIN, str(poolid))},

@@ -234,6 +234,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
 class KlereoSensor(CoordinatorEntity, SensorEntity):
+    _attr_has_entity_name = True   # "<pool> <name>": see klereo_device_info()
 
     def __init__(self, coordinator, probe, poolid, device_info, klereo_name=None):
         super().__init__(coordinator)
@@ -323,6 +324,7 @@ class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
     whether the entity is enabled when first registered.
     """
 
+    _attr_has_entity_name = True   # "<pool> <name>": see klereo_device_info()
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator, poolid, device_info, info):

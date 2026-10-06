@@ -70,6 +70,7 @@ class FakeKlereoAPI:
     """
     pool = None
     pools = []            # what list_pools answers
+    others = {}           # poolid -> payload, for a second pool; POOL otherwise
     error = None          # raised by every read when set
     list_error = None     # raised by list_pools alone when set
     made = []
@@ -77,11 +78,12 @@ class FakeKlereoAPI:
 
     def __init__(self, username, password, poolid=None, server=None):
         FakeKlereoAPI.made.append((username, password, poolid, server))
+        self.poolid = poolid
 
     def get_pool(self):
         if FakeKlereoAPI.error:
             raise FakeKlereoAPI.error
-        return copy.deepcopy(FakeKlereoAPI.pool)
+        return copy.deepcopy(FakeKlereoAPI.others.get(self.poolid, FakeKlereoAPI.pool))
 
     def list_pools(self):
         if FakeKlereoAPI.list_error or FakeKlereoAPI.error:
