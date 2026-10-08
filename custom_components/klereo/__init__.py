@@ -40,7 +40,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     # Initialize the API
-    LOGGER.info(f"Initializing {DOMAIN} for pool #{entry.data.get('poolid')}...")
+    LOGGER.debug("Initializing %s for pool #%s", DOMAIN, entry.data.get('poolid'))
     api = KlereoAPI(entry.data.get('username'), entry.data.get('password'),
                     entry.data.get('poolid'), entry.data.get('server'))
     
@@ -70,11 +70,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # The options flow only writes entry.options; this is what applies them.
     entry.async_on_unload(entry.add_update_listener(async_entry_updated))
 
-    LOGGER.info("Successfully set up %s integration",DOMAIN)
+    LOGGER.debug("Set up %s for pool #%s", DOMAIN, entry.data.get('poolid'))
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    LOGGER.info("Unloading %s integration",DOMAIN)
+    LOGGER.debug("Unloading %s for pool #%s", DOMAIN, entry.data.get('poolid'))
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)

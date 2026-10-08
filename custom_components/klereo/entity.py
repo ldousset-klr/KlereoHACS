@@ -5,11 +5,13 @@ import logging
 
 from requests import RequestException
 
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .klereo_api import KlereoAPI, KlereoError
 from .const import (ACCESS_COMMAND_MIN, ACCESS_PARAM_ANY, COMMAND_DONE,
-                    COMMAND_POLL_DELAYS, COMMAND_STATUS, DOMAIN,
+                    COMMAND_POLL_DELAYS, COMMAND_STATUS, DEF_SERVER, DOMAIN,
+                    KLEREO_PATH,
                     FILTRATION_OUT_INDEX, MAX_PUMP_SPEED,
                     TREATMENT_OUT_INDEXES,
                     OUT_MODE_NAME_OVERRIDES, OUT_MODE_STATES, OUT_MODES,
@@ -19,7 +21,23 @@ from .const import (ACCESS_COMMAND_MIN, ACCESS_PARAM_ANY, COMMAND_DONE,
 LOGGER = logging.getLogger(__name__)
 
 
-def klereo_device_info(pool_data, poolid) -> DeviceInfo:
+def klereo_configuration_url(server):
+    """The web interface of the server an entry talks to, for the device page.
+
+    The entry's server is whatever the user typed, endpoints' /php included or
+    not; the device links to the site itself. Anything that is not an http(s)
+    address falls back to production rather than handing Home Assistant a link
+    it would reject.
+    """
+    base = (server or "").strip().rstrip("/")
+    if base.endswith(KLEREO_PATH):
+        base = base[:-len(KLEREO_PATH)].rstrip("/")
+    if not base.lower().startswith(("http://", "https://")):
+        return DEF_SERVER
+    return base
+
+
+def klereo_device_info(pool_data, poolid, server=None) -> DeviceInfo:
     """Build the device all entities of this pool belong to.
 
     Fields the payload may omit are only set when present, so a missing one
@@ -35,7 +53,9 @@ def klereo_device_info(pool_data, poolid) -> DeviceInfo:
         identifiers={(DOMAIN, str(poolid))},
         manufacturer="Klereo",
         name=pool_data.get("poolNickname") or f"Klereo pool #{poolid}",
-        configuration_url="https://connect.klereo.fr",
+        # The entry's own server: a pool configured against a dev server links
+        # there, not to production.
+        configuration_url=klereo_configuration_url(server),
     )
     # The firmware revision is tabSW, not PodSW: PodSW is the pod application
     # number (a plain integer), tabSW is the board software version ("212D").
@@ -49,6 +69,26 @@ def klereo_device_info(pool_data, poolid) -> DeviceInfo:
         if value:
             info[field] = str(value)
     return info
+
+
+def klereo_items(pool_data, section):
+    """The probes or the outs of a payload, as a list of dicts with an index.
+
+    Any section may be absent, or null, on some installation — a boiler was
+    seen with `outs: []` — so a missing one reads as empty rather than raising
+    and taking the whole platform down with it. An entry without an index has
+    nothing to key an entity on, and is skipped.
+    """
+    return [item for item in (pool_data.get(section) or ())
+            if isinstance(item, dict) and "index" in item]
+
+
+def klereo_item(pool_data, section, index):
+    """One probe or out of the freshest payload by index, or None if it is gone."""
+    for item in klereo_items(pool_data, section):
+        if item["index"] == index:
+            return item
+    return None
 
 
 # IORename[].ioType. 3 and 4 were seen naming the two end states of a cover
@@ -214,6 +254,22 @@ class KlereoCommandMixin:
     def _clear_optimistic(self):
         """Drop whatever this entity is showing ahead of the payload."""
         raise NotImplementedError
+
+    async def _send(self, func, *args):
+        """Run a write in the executor; a Klereo failure becomes a readable error.
+
+        Left alone, a KlereoError or a network error escaped the service call
+        as an unexpected exception, which Home Assistant reports with a
+        traceback and no message. The server's own reason goes in the text.
+        """
+        try:
+            return await self.hass.async_add_executor_job(func, *args)
+        except (KlereoError, RequestException) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={"name": self._name, "error": str(err)},
+            ) from err
 
     def _follow_command(self, reply, what):
         """Start the confirmation and return. Never awaited by a service call."""

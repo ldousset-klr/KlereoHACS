@@ -37,7 +37,6 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         """Collect the credentials, then list the account's pools."""
         errors = {}
-        LOGGER.info(f"Configuration {DOMAIN}")
         if user_input is not None:
             self._username = user_input[CONF_USERNAME]
             self._password = user_input[CONF_PASSWORD]
@@ -45,13 +44,13 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             try:
                 self._pools = await self._list_pools()
             except KlereoAuthError as err:
-                LOGGER.warning(f"Klereo rejected the credentials: {err}")
+                LOGGER.warning("Klereo rejected the credentials: %s", err)
                 errors = {"base": "invalid_auth"}
             except (KlereoError, RequestException) as err:
                 # The credentials may well be fine and only GetIndex be
                 # unavailable, so fall back to typing the poolID rather than
                 # blocking setup entirely.
-                LOGGER.warning(f"Could not list the pools ({err}), asking for the poolID")
+                LOGGER.warning("Could not list the pools (%s), asking for the poolID", err)
                 return await self.async_step_manual()
             else:
                 if not self._pools:
@@ -217,16 +216,17 @@ class KlereoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data.get(CONF_SERVER),
             )
         except KlereoAuthError as err:
-            LOGGER.warning(f"Klereo rejected the credentials: {err}")
+            LOGGER.warning("Klereo rejected the credentials: %s", err)
             return {"base": "invalid_auth"}
         except (KlereoError, RequestException) as err:
-            LOGGER.warning(f"Could not reach Klereo: {err}")
+            LOGGER.warning("Could not reach Klereo: %s", err)
             return {"base": "cannot_connect"}
         return {}
 
     async def _test_credentials(self, username, password, poolid, server=None):
         """Log in and read the pool, so a bad login or a bad poolID is caught here."""
-        LOGGER.info(f"Verifying credentials for user '{username}' for pool #{poolid}")
+        # The username is an email address: it stays out of the log.
+        LOGGER.debug("Verifying credentials for pool #%s", poolid)
         api = KlereoAPI(username, password, poolid, server)
         await self.hass.async_add_executor_job(api.get_pool)
 

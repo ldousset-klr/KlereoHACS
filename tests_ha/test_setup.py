@@ -62,6 +62,7 @@ async def test_device(hass, loaded):
     assert device.sw_version == "212D"
     assert device.hw_version == "3"
     assert device.serial_number == "TEST0000"
+    assert device.configuration_url == "https://connect.klereo.fr"
     # Every entity hangs off that one device.
     assert {e.device_id for e in _entities(hass, loaded)} == {device.id}
 
@@ -179,3 +180,25 @@ async def test_unique_id_backfilled(hass, api):
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.unique_id == str(POOLID)
+
+
+async def test_device_links_to_the_entry_server(hass, api):
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=str(POOLID), title="Dev",
+                            data={**DATA, "server": "https://dev.example/php"})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, str(POOLID))})
+    assert device.configuration_url == "https://dev.example"
+
+
+async def test_missing_sections(hass, api, entry):
+    """A payload without probes nor outs sets up, with what it does carry."""
+    del api.pool["probes"]
+    api.pool["outs"] = None
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    uids = {e.unique_id for e in _entities(hass, entry)}
+    assert not any("probe" in uid or "out" in uid for uid in uids)
+    assert "id_klereo115pin" in uids

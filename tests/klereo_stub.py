@@ -94,12 +94,15 @@ core.callback = lambda f: f
 core.HomeAssistant = object
 
 exc = _mod('homeassistant.exceptions')
-class ServiceValidationError(Exception):
-    def __init__(self, translation_domain=None, translation_key=None,
+class HomeAssistantError(Exception):
+    def __init__(self, *args, translation_domain=None, translation_key=None,
                  translation_placeholders=None):
         self.key = translation_key
         self.placeholders = translation_placeholders or {}
-        super().__init__(f"{translation_key}: {self.placeholders}")
+        super().__init__(*args or (f"{translation_key}: {self.placeholders}",))
+class ServiceValidationError(HomeAssistantError):
+    pass
+exc.HomeAssistantError = HomeAssistantError
 exc.ServiceValidationError = ServiceValidationError
 
 upd = _mod('homeassistant.helpers.update_coordinator')
@@ -166,6 +169,7 @@ class ConfigEntryData:
 class FakeEntry:
     """Comme ConfigEntry : garde ses tâches de fond et les annule au unload."""
     entry_id = 'e'
+    data = {}
     def __init__(self): self.tasks = []
     def async_create_background_task(self, hass, coro, name, eager_start=True):
         t = hass.async_create_task(coro)

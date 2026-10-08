@@ -110,7 +110,7 @@ class KlereoAPI:
         response = self.session.post(url, headers=headers, data=payload, timeout=HTTP_TIMEOUT)
         if response.status_code in (401, 403):
             if retry_auth:
-                LOGGER.info("JWT refused by %s (HTTP %s), renewing it", endpoint, response.status_code)
+                LOGGER.debug("JWT refused by %s (HTTP %s), renewing it", endpoint, response.status_code)
                 self.jwt = None
                 return self._post(endpoint, payload, retry_auth=False)
             raise KlereoAuthError(f"{endpoint} refused the JWT (HTTP {response.status_code})")
@@ -121,7 +121,7 @@ class KlereoAPI:
             return data
         if self._looks_like_auth_error(error):
             if retry_auth:
-                LOGGER.info("JWT looks expired (%s said: %s), renewing it", endpoint, error)
+                LOGGER.debug("JWT looks expired (%s said: %s), renewing it", endpoint, error)
                 self.jwt = None
                 return self._post(endpoint, payload, retry_auth=False)
             raise KlereoAuthError(f"{endpoint} refused the JWT: {error}")
@@ -137,7 +137,7 @@ class KlereoAPI:
     def get_index(self):
         """Every system this account can see. Needs no poolID."""
         index = self._unwrap(self._post("GetIndex.php"), "GetIndex.php")
-        LOGGER.info("GetIndex returned %s systems", len(index) if index else 0)
+        LOGGER.debug("GetIndex returned %s systems", len(index) if index else 0)
         return index
 
     def list_pools(self):
@@ -160,7 +160,8 @@ class KlereoAPI:
         return pools
 
     def get_pool(self):
-        LOGGER.info(f"GetPoolDetails #{self.poolid}")
+        # Every poll: DEBUG, or the log gains a line every five minutes.
+        LOGGER.debug("GetPoolDetails #%s", self.poolid)
         pools = self._unwrap(self._post("GetPoolDetails.php", {
             'poolID': self.poolid,
             'lang': 'fr'
@@ -174,14 +175,15 @@ class KlereoAPI:
         purpose: it used to be hardcoded to 2 (Minuterie), which silently
         retimed every output it touched, so the caller must say what it wants.
         """
-        LOGGER.info(f"SetOut #{self.poolid} out{outIdx} state={state} mode={mode}")
+        # Writes stay at INFO: rare, and someone asked for each of them.
+        LOGGER.info("SetOut #%s out%s state=%s mode=%s", self.poolid, outIdx, state, mode)
         rep = self._post("SetOut.php", {
             'poolID': self.poolid,
             'outIdx': outIdx,
             'newMode': mode,
             'newState': state
         })
-        LOGGER.info(f"rep={rep}")
+        LOGGER.debug("SetOut reply: %s", rep)
         return rep
 
     def set_param(self, paramID, value, label=None):
@@ -220,9 +222,9 @@ class KlereoAPI:
         # parameter's offset and length. Ours trades those internals for
         # provenance: the command log then says who asked for the change.
         payload['label'] = label or f"Home Assistant: {paramID}={value}"
-        LOGGER.info(f"SetParam #{self.poolid} {paramID}={value}")
+        LOGGER.info("SetParam #%s %s=%s", self.poolid, paramID, value)
         rep = self._post("SetParam.php", payload)
-        LOGGER.info(f"rep={rep}")
+        LOGGER.debug("SetParam reply: %s", rep)
         return rep
 
     def command_status(self, cmd_id):

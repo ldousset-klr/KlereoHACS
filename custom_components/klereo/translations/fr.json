@@ -82,6 +82,9 @@
     },
     "out_needs_full_access": {
       "message": "{name} n'est pas pilotable : Klereo réserve le correcteur pH, le désinfectant, le floculant et le chlore hybride au niveau d'accès 16 sur ce bassin, et ce compte a le niveau {access}. Les autres sorties fonctionnent dès le niveau 10."
+    },
+    "command_failed": {
+      "message": "{name} n'a pas pu être modifié : Klereo n'a pas accepté la commande ({error})."
     }
   }
 }

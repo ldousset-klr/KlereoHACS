@@ -73,6 +73,7 @@ release, still install the component in a running Home Assistant and read the lo
 | `test_options.py` | the poll interval — default, clamping, junk in storage; the options form's bounds and the whole seconds it stores; reconfigure validating the new server on the same poolID, requiring the password again, and leaving the entry alone on a refusal; the update listener reloading on an interval change only; every new step and abort translated in both languages |
 | `test_ph.py` | the pH corrector's modes, the `newState` each one sends, and the error text naming the entity as the user sees it |
 | `test_resume.py` | the filtration's last-known speed: learned from polls, sent back on `turn_on`, restored after a restart, ignored when out of range |
+| `test_robust.py` | 1.5.1: a write Klereo or the network refuses becomes a `HomeAssistantError` with `command_failed` and the server's reason, leaving no optimistic value and no confirmation; absent or null `probes`/`outs` and missing fields set up and read as `None`; the device's link following the entry's server |
 | `test_runtime.py` | `_params_hours()` — seconds to hours, `duration` / `total_increasing`, and no entity on an absurd value |
 | `test_setparam.py` | `set_param()`'s POST body against the PHP, the values refused before the round trip, the tenth-of-a-degree rounding, and that no `SetParam`/`SetOut` error message matches `AUTH_HINTS` |
 | `test_setpoint.py` | the water setpoint entity: created only where `ConsigneEau` is a number, display not clamped by `SETPOINT_MIN`/`MAX` |

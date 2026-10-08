@@ -52,7 +52,7 @@ def test_hybrid(check):
     c = Coordinator(pool([out(i,2 if i in (3,15) else 0) for i in range(16)]))
     added=[]
     class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-    class E: entry_id='e'
+    class E: entry_id='e'; data={}
     run(select_setup(H(), E(), lambda es: added.extend(es)))
     check("sélecteurs sur les 16 sorties", sorted(e._index for e in added), list(range(16)))
     readonly=[]

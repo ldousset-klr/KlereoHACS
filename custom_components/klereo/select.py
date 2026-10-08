@@ -3,10 +3,11 @@ from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (DOMAIN, ICON_OUT_MODE, OUT_LABELS,
+from .const import (CONF_SERVER, DOMAIN, ICON_OUT_MODE, OUT_LABELS,
                     OUTS_DISABLED_BY_DEFAULT)
 from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
-                     klereo_device_info, klereo_io_names, klereo_out_mode_name,
+                     klereo_device_info, klereo_io_names, klereo_item,
+                     klereo_items, klereo_out_mode_name,
                      klereo_out_mode_states, klereo_out_refusal)
 
 import logging
@@ -19,17 +20,18 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     api = hass.data[DOMAIN][config_entry.entry_id]["api"]
     pool_data = coordinator.data
     poolid = pool_data['idSystem']
-    device_info = klereo_device_info(pool_data, poolid)
+    device_info = klereo_device_info(pool_data, poolid,
+                                     config_entry.data.get(CONF_SERVER))
     names = klereo_io_names(pool_data, IO_TYPE_OUT)
 
     selects = []
-    for out in pool_data["outs"]:
+    for out in klereo_items(pool_data, "outs"):
         index = out['index']
         # A mode is offered exactly where the out's permitted states are known:
         # that is both what makes it writable and what says which modes to list.
         if klereo_out_mode_states(pool_data, index) is None:
             continue
-        LOGGER.info("Adding mode select for #%s out%s", poolid, index)
+        LOGGER.debug("Adding mode select for #%s out%s", poolid, index)
         selects.append(KlereoOutMode(api, coordinator, out, poolid,
                                      device_info, names.get(index)))
     async_add_entities(selects)
@@ -84,10 +86,7 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
     @callback
     def _out(self):
         """Return this out in the freshest payload, or None if it vanished."""
-        for out in self.coordinator.data['outs']:
-            if out['index'] == self._index:
-                return out
-        return None
+        return klereo_item(self.coordinator.data, "outs", self._index)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -112,12 +111,12 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
         if out is None:
             return None
         option = klereo_out_mode_name(self.coordinator.data, self._index,
-                                      out['mode'])
+                                      out.get('mode'))
         if option not in self._attr_options:
             # A reserved or unexpected mode: report unknown rather than a value
             # Home Assistant would reject, and leave it alone.
             LOGGER.debug("#%s out%s carries mode %r, outside %s",
-                         self._poolid, self._index, out['mode'],
+                         self._poolid, self._index, out.get('mode'),
                          tuple(self._states))
             return None
         return option
@@ -144,7 +143,7 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
         if len(rule.states) == 1:
             return rule.states[0]
         out = self._out()
-        status = out['status'] if out else None
+        status = out.get('status') if out else None
         if status in rule.states:
             return status
         raise ServiceValidationError(
@@ -172,9 +171,7 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
         state = self._state_for(mode)
         LOGGER.debug("Setting mode of #%s out%s to %s (%s), state=%s",
                      self._poolid, self._index, mode, option, state)
-        reply = await self.hass.async_add_executor_job(
-            self._api.set_out, self._index, state, mode
-        )
+        reply = await self._send(self._api.set_out, self._index, state, mode)
         self._optimistic_mode = option
         self.async_write_ha_state()
         self._follow_command(reply, f"{self._name} -> {option}")

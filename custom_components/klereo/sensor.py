@@ -4,14 +4,15 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (CHLORINE_FLOW_PARAM, DOMAIN, FLOCCULANT_OUT_INDEX,
+from .const import (CHLORINE_FLOW_PARAM, CONF_SERVER, DOMAIN, FLOCCULANT_OUT_INDEX,
                     HYBRID_CHLORINE_OUT_INDEX, HYBRID_CHLORINE_TIME_KEY,
                     ICON_INFO, ICON_WATER_VOLUME, ML_PER_FLOW_UNIT,
                     OUT_TOTAL_TIME_KEY, PH_FLOW_PARAM, PROBE_ICONS,
                     PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
                     PROBE_TYPE_DEFAULT, PUMP_DOSED_TREATMENTS,
                     SECONDS_PER_HOUR)
-from .entity import IO_TYPE_PROBE, klereo_device_info, klereo_io_names
+from .entity import (IO_TYPE_PROBE, klereo_device_info, klereo_io_names,
+                     klereo_item, klereo_items)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -208,19 +209,16 @@ INFO_SENSORS = (
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
 
-    LOGGER.info(f"Setting up sensors...")
-    # Get infos from coordinator
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    pool_data=coordinator.data;
-    probes = pool_data["probes"]
+    pool_data = coordinator.data
     poolid = pool_data['idSystem']
-    device_info = klereo_device_info(pool_data, poolid)
+    device_info = klereo_device_info(pool_data, poolid,
+                                     config_entry.data.get(CONF_SERVER))
     names = klereo_io_names(pool_data, IO_TYPE_PROBE)
-    # Add sensors
     sensors = []
-    for probe in probes:
-        LOGGER.info(f"Adding sensor for #{poolid}: {probe}")
-        sensors.append(KlereoSensor(coordinator,probe,poolid,device_info,
+    for probe in klereo_items(pool_data, "probes"):
+        LOGGER.debug("Adding sensor for #%s: %s", poolid, probe)
+        sensors.append(KlereoSensor(coordinator, probe, poolid, device_info,
                                     names.get(probe['index'])))
     # Identity values, only when the payload carries them
     for info in INFO_SENSORS:
@@ -229,7 +227,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                          info.key, poolid)
             continue
         sensors.append(KlereoInfoSensor(coordinator, poolid, device_info, info))
-    #add sensor enitities
     async_add_entities(sensors)
 
 
@@ -246,7 +243,7 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
         # next; the raw key is the last resort.
         self._name = klereo_name or PROBE_LABELS.get(probe['index']) or self._key
         self._index = probe['index']
-        self._type = probe['type']
+        self._type = probe.get('type')
         self._poolid = poolid
         if self._type not in PROBE_TYPES:
             # Outside e_TypeCapteurs: the firmware gained a type this table
@@ -268,10 +265,7 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
 
     def _probe(self):
         """Return this probe in the freshest payload, or None if it disappeared."""
-        for probe in self.coordinator.data['probes']:
-            if probe['index'] == self._index:
-                return probe
-        return None
+        return klereo_item(self.coordinator.data, "probes", self._index)
 
     @property
     def name(self):
@@ -287,15 +281,15 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
         if probe is None:
             return None
         try:
-            value = float(probe['filteredValue'])
-        except (KeyError, TypeError, ValueError):
-            LOGGER.debug(f"{self._name} has no usable value: {probe.get('filteredValue')!r}")
+            value = float(probe.get('filteredValue'))
+        except (TypeError, ValueError):
+            LOGGER.debug("%s has no usable value: %r", self._name,
+                         probe.get('filteredValue'))
             return None
         if value <= PROBE_INVALID:
             # Absent or unreadable probe: report unknown rather than -1000.
-            LOGGER.debug(f"{self._name} reports no measurement ({value})")
+            LOGGER.debug("%s reports no measurement (%s)", self._name, value)
             return None
-        LOGGER.debug(f"{self._name}={value}")
         return value
 
     @property
@@ -308,10 +302,10 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
         # It can then sit hours behind directValue, so both are exposed: compare
         # Time and DirectTime to tell a settled reading from a stale one.
         return {
-            'Time': probe['filteredTime'],
+            'Time': probe.get('filteredTime'),
             'Direct': probe.get('directValue'),
             'DirectTime': probe.get('directTime'),
-            'Type': int(probe['type']),
+            'Type': self._type,
             'TypeName': self._label
         }
 

@@ -1,10 +1,11 @@
 """Commands through Home Assistant's services: what reaches Klereo, and what comes back."""
 import pytest
 
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.klereo.const import DOMAIN
+from custom_components.klereo.klereo_api import KlereoError
 
 
 async def _call(hass, domain, service, entity_id, **data):
@@ -86,3 +87,27 @@ async def test_treatment_output_needs_full_access(hass, api, loaded):
         await _call(hass, "select", "select_option", entity_id, option="Manuel")
     assert err.value.translation_key == "out_needs_full_access"
     assert _writes(api) == []
+
+
+async def test_refused_write_is_a_message(hass, api, loaded):
+    """A command Klereo refuses reads as a sentence, not an unexpected error."""
+    reason = "SetOut.php failed: error=Désolé, le service n'est pas disponible"
+    api.write_error = KlereoError(reason)
+    for domain, service, entity_id, data in [
+        ("switch", "turn_on", "switch.test_pool_spots", {}),
+        ("number", "set_value", "number.test_pool_water_setpoint", {"value": 28}),
+        ("number", "set_value", "number.test_pool_filtration_speed", {"value": 3}),
+        ("select", "select_option", "select.test_pool_spots_mode", {"option": "Minuterie"}),
+    ]:
+        before = hass.states.get(entity_id).state
+        with pytest.raises(HomeAssistantError) as err:
+            await _call(hass, domain, service, entity_id, **data)
+        # Not the user's input at fault: a plain HomeAssistantError.
+        assert not isinstance(err.value, ServiceValidationError), entity_id
+        assert err.value.translation_key == "command_failed", entity_id
+        # Rendered from translations/, the server's reason carried in it.
+        assert "command_failed" not in str(err.value)
+        assert "Désolé" in str(err.value)
+        # Nothing shown ahead of the payload, nothing to confirm.
+        assert hass.states.get(entity_id).state == before, entity_id
+    assert ("command_status", 1) not in api.calls

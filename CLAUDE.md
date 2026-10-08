@@ -65,8 +65,12 @@ touches a Home Assistant API belongs in a `tests_ha/` test, run against **both**
 
 The HTTP calls themselves are still faked by both. For those, and before any release, still copy `custom_components/klereo/` into a
 running Home Assistant's `config/custom_components/`, restart HA, add the integration via
-the UI config flow (username / password / poolID), and read the logs. Everything logs through `logging.getLogger(__name__)` at INFO/DEBUG, so raise the
+the UI config flow (username / password / poolID), and read the logs. Everything logs through `logging.getLogger(__name__)`, so raise the
 `custom_components.klereo` logger to `debug` in `configuration.yaml` when debugging.
+**INFO is kept for what someone asked for** — a `SetOut`/`SetParam`, an interval change —
+and everything routine is DEBUG: the poll every five minutes, setup, a JWT renewal, the
+servers' replies and each entity added. The username is an email address and is never
+logged. Log with `%s` arguments, not f-strings.
 
 `.github/workflows/validate.yml` runs **pytest** (on Python 3.12 and 3.13), the
 **`tests_ha/` suite** (Home Assistant 2024.11.0 and latest), **hassfest** and the
@@ -142,6 +146,9 @@ credential disclosure, not just a connection failure.
   the download.
 - `entity.py` — `klereo_device_info()`, the single source of the device every entity of a
   pool attaches to (`identifiers={(DOMAIN, str(poolid))}`, named from `poolNickname`).
+  Its `configuration_url` is the **entry's own server**, through
+  `klereo_configuration_url()` — `/php` and trailing slashes trimmed, anything that is not
+  http(s) falling back to production — so a pool on a dev server links there.
   Both platforms build it once in `async_setup_entry` and pass it to each entity. Optional
   fields are only set when the payload carries them, so a missing one is absent rather
   than the string `"None"`: `sw_version` from **`tabSW`**, the board software version like
@@ -206,10 +213,10 @@ credential disclosure, not just a connection failure.
   reflects; `async_set_native_value()` also rounds before sending and holds the rounded
   value, since a `number.set_value` service call can pass any float past the entity's step
   and showing 26.35 while the pool holds 26.4 would be a discrepancy this entity invented.
-  `SETPOINT_MIN`/`MAX` stay **provisional** — the firmware's own limits were never
-  supplied, and `params.EauMin`/`EauMax` are the water probe's alarm thresholds, not the
-  setpoint's bounds, so they are deliberately not used. They constrain the control only; a
-  reading outside them still displays.
+  `SETPOINT_MIN`/`MAX`, **0–40 °C, are confirmed by the codeowner**; `params.EauMin`/
+  `EauMax` are the water probe's alarm thresholds, not the setpoint's bounds, so they are
+  deliberately not used. They constrain the control only; a reading outside them still
+  displays.
 - Also in `number.py`: the filtration speed, the one out whose `status` is a speed index. It is
   created only when the pool declares `PumpMaxSpeed > 1`, so pools with no speed control
   keep just their switch; the range is `0..min(PumpMaxSpeed, MAX_PUMP_SPEED)`, resolved by
@@ -239,7 +246,11 @@ credential disclosure, not just a connection failure.
   Assistant rejects a state that is not among the options anyway.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
   from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
-  re-scan `coordinator.data` on every property read rather than caching. Each entity keeps
+  re-scan `coordinator.data` on every property read rather than caching — always through
+  `entity.klereo_items()`/`klereo_item()`, which read an absent or null `probes`/`outs` as
+  empty and skip an entry with no `index`, and with `.get()` on every field of a probe or
+  an out, so a payload missing one yields `None` rather than a `KeyError` that takes the
+  platform down. Each entity keeps
   `_key` (`klereo<poolid>probe<index>`) separate from `_name`. **Every entity class sets
   `_attr_has_entity_name = True`**, so Home Assistant shows "<pool> <name>" and builds a
   new entity_id from both — `sensor.<pool>_pin`, where a bare `sensor.pin` became
@@ -411,6 +422,13 @@ that no longer existed, and to refresh a coordinator whose api had been dropped 
 whose verdict concerns a value nobody is showing any more and whose `_clear_optimistic()`
 would wipe the one the new write just set — two quick presses on a switch did exactly
 that. `async_will_remove_from_hass()` cancels as well, for an entity that goes on its own.
+
+**Every write goes through `KlereoCommandMixin._send()`**, which runs it in the executor
+and turns a `KlereoError` or a `RequestException` into a `HomeAssistantError` carrying the
+`command_failed` translation key and the server's reason. Left alone, those escaped the
+service call as an unexpected exception: a traceback in the log and no message in the UI.
+It is a plain `HomeAssistantError`, not a `ServiceValidationError` — the user's input is
+not at fault. A refused write sets no optimistic value and starts no confirmation.
 
 **The wait never blocks the service call** — 26 s on a switch press would be unusable — so it runs as a background
 task while the entity returns at once. That also removed the optimistic value's flicker:

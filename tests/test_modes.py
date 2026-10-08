@@ -38,7 +38,7 @@ def test_modes(check):
     added = []
     class HassData(Hass):
         data = {'klereo': {'e': {'coordinator': c2, 'api': Api()}}}
-    class Entry: entry_id = 'e'
+    class Entry: entry_id = 'e'; data = {}
     run(select_setup(HassData(), Entry(), lambda es: added.extend(es)))
     check("index équipés", sorted(e._index for e in added), sorted(set(OUT_MODE_STATES) | {1}))
     check("filtration incluse", 1 in [e._index for e in added], True)

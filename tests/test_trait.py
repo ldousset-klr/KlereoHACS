@@ -97,7 +97,7 @@ def test_trait(check):
                                 (TRAIT_BROME,  None,             [0,1,2,3,5,6,7,8,9,10,11,12,13,14,15])):
         c = Coordinator(pool([out(i,0) for i in range(16)], trait=trait, heater=heater)); added=[]
         class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-        class E: entry_id='e'
+        class E: entry_id='e'; data={}
         run(select_setup(H(), E(), lambda es: added.extend(es)))
         check(f"TraitMode {trait} / HeaterMode {heater}", sorted(e._index for e in added), want)
     print()

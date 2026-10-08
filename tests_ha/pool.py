@@ -73,6 +73,7 @@ class FakeKlereoAPI:
     others = {}           # poolid -> payload, for a second pool; POOL otherwise
     error = None          # raised by every read when set
     list_error = None     # raised by list_pools alone when set
+    write_error = None    # raised by set_out and set_param when set
     made = []
     calls = []
 
@@ -92,6 +93,8 @@ class FakeKlereoAPI:
 
     def set_out(self, outIdx, state, mode):
         FakeKlereoAPI.calls.append(("set_out", outIdx, state, mode))
+        if FakeKlereoAPI.write_error:
+            raise FakeKlereoAPI.write_error
         # The pod applies it, so the refresh after the confirmation shows it.
         # Keep leaves the state alone, except on the filtration, where 2 is
         # a speed in Manuel.
@@ -110,6 +113,8 @@ class FakeKlereoAPI:
 
     def set_param(self, paramID, value, label=None):
         FakeKlereoAPI.calls.append(("set_param", paramID, value))
+        if FakeKlereoAPI.write_error:
+            raise FakeKlereoAPI.write_error
         FakeKlereoAPI.pool["params"][paramID] = value
         return {"status": "ok", "response": [{"cmdID": 2, "poolID": POOLID}]}
 
