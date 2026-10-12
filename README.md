@@ -16,7 +16,7 @@ One device per pool, named after its Klereo nickname, carrying:
 - **A switch per output** — lighting, filtration, pH corrector, disinfectant, heating and
   the auxiliaries.
 - **The water temperature setpoint**, on pools that have one, readable and settable in
-  °C to a tenth of a degree — the resolution the controller keeps. The controller queues
+  °C between 0 and 40, to a tenth of a degree — the resolution the controller keeps. The controller queues
   the change rather than applying it on the spot, so the integration follows it up and
   only refreshes once the pool has really taken it. An account with view-only rights on
   the pool is told so when it tries, instead of getting an untranslated refusal from the
@@ -377,10 +377,6 @@ Writing the outputs, a mode selector on them, and changing an entry's poll inter
 server and credentials in place are done — every output now carries its rules, and only
 a heating or disinfectant whose controller does not say what it drives stays read-only. What is left:
 
-- **The setpoint's real limits.** The control is bounded at 0–40 °C, which is a
-  placeholder: the controller's own limits were never supplied, and `EauMin`/`EauMax` are
-  the water probe's alarm thresholds, not the setpoint's. A reading outside the range
-  still displays.
 - **What `outs[].type` encodes.** It is not the output's role, and not the firmware's
   `e_OutTypes` either, so it is published as an attribute and nothing reads it.
 - **More translations.** French and English only.

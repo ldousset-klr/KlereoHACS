@@ -11,7 +11,7 @@ def test_volume(check):
     def build(p):
         c = Coordinator(p); added=[]
         class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-        class E: entry_id='e'
+        class E: entry_id='e'; data={}
         run(sensor_setup(H(), E(), lambda es: added.extend(es)))
         return c, {e._key.replace('klereo115',''): e for e in added if isinstance(e, KlereoInfoSensor)}
     print("== le capteur est créé et rapporte la valeur ==")

@@ -82,6 +82,9 @@
     },
     "out_needs_full_access": {
       "message": "{name} cannot be driven: Klereo reserves the pH corrector, the disinfectant, the flocculant and hybrid chlorine to access level 16 on the pool, and this account has {access}. The other outputs work from level 10."
+    },
+    "command_failed": {
+      "message": "{name} could not be changed: Klereo did not accept the command ({error})."
     }
   }
 }

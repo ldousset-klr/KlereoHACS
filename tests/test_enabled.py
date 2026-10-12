@@ -21,7 +21,7 @@ def test_enabled(check):
     def setup(fn):
         c = Coordinator(pool()); added=[]
         class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-        class E: entry_id='e'
+        class E: entry_id='e'; data={}
         run(fn(H(), E(), lambda es: added.extend(es)))
         return added
     print("== la table dit ce que l'utilisateur a demandé ==")

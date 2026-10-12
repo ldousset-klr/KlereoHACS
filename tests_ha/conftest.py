@@ -33,7 +33,7 @@ def api(monkeypatch):
     FakeKlereoAPI.pool = copy.deepcopy(POOL)
     FakeKlereoAPI.pools = [(POOLID, "Test pool"), (116, "Other pool")]
     FakeKlereoAPI.others = {}
-    FakeKlereoAPI.error = FakeKlereoAPI.list_error = None
+    FakeKlereoAPI.error = FakeKlereoAPI.list_error = FakeKlereoAPI.write_error = None
     FakeKlereoAPI.made = []
     FakeKlereoAPI.calls = []
     monkeypatch.setattr("custom_components.klereo.KlereoAPI", FakeKlereoAPI)

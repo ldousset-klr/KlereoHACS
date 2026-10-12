@@ -3,12 +3,12 @@ from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (DOMAIN, FILTRATION_OUT_INDEX, ICON_FILTRATION_SPEED,
+from .const import (CONF_SERVER, DOMAIN, FILTRATION_OUT_INDEX, ICON_FILTRATION_SPEED,
                     MAX_PUMP_SPEED, OUT_LABELS, SETPOINT_MAX, SETPOINT_MIN,
                     SETPOINT_PARAM, SETPOINT_STEP)
 from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
-                     klereo_device_info,
-                     klereo_io_names, klereo_may_command, klereo_out_mode_name,
+                     klereo_device_info, klereo_io_names, klereo_item,
+                     klereo_may_command, klereo_out_mode_name,
                      klereo_out_mode_states, klereo_out_refusal,
                      klereo_pump_max_speed)
 
@@ -22,7 +22,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     api = hass.data[DOMAIN][config_entry.entry_id]["api"]
     pool_data = coordinator.data
     poolid = pool_data['idSystem']
-    device_info = klereo_device_info(pool_data, poolid)
+    device_info = klereo_device_info(pool_data, poolid,
+                                     config_entry.data.get(CONF_SERVER))
 
     numbers = []
 
@@ -34,7 +35,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     # no heating, and on anything that is not a pool at all.
     setpoint = (pool_data.get("params") or {}).get(SETPOINT_PARAM)
     if isinstance(setpoint, (int, float)) and not isinstance(setpoint, bool):
-        LOGGER.info("Adding water setpoint for #%s (currently %s)", poolid, setpoint)
+        LOGGER.debug("Adding water setpoint for #%s (currently %s)", poolid, setpoint)
         numbers.append(KlereoWaterSetpoint(api, coordinator, poolid, device_info))
     else:
         LOGGER.debug("Pool #%s declares no ConsigneEau (%r), no setpoint entity",
@@ -45,8 +46,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 def _filtration_speed(api, coordinator, pool_data, poolid, device_info):
     """The speed entity, or None on a pool whose pump has at most one speed."""
-    if not any(out['index'] == FILTRATION_OUT_INDEX for out in pool_data["outs"]):
-        LOGGER.info("Pool #%s has no out %s, no speed entity",
+    if klereo_item(pool_data, "outs", FILTRATION_OUT_INDEX) is None:
+        LOGGER.debug("Pool #%s has no out %s, no speed entity",
                     poolid, FILTRATION_OUT_INDEX)
         return None
 
@@ -58,11 +59,11 @@ def _filtration_speed(api, coordinator, pool_data, poolid, device_info):
     max_speed = klereo_pump_max_speed(pool_data)
     if max_speed < 2:
         # 0 = no speed control, 1 = single speed: the switch says it all.
-        LOGGER.info("Pool #%s drives no pump speed (PumpMaxSpeed=%s), no speed entity",
+        LOGGER.debug("Pool #%s drives no pump speed (PumpMaxSpeed=%s), no speed entity",
                     poolid, max_speed)
         return None
 
-    LOGGER.info("Adding filtration speed 0-%s for #%s", max_speed, poolid)
+    LOGGER.debug("Adding filtration speed 0-%s for #%s", max_speed, poolid)
     klereo_name = klereo_io_names(pool_data, IO_TYPE_OUT).get(FILTRATION_OUT_INDEX)
     return KlereoFiltrationSpeed(api, coordinator, poolid, device_info,
                                  max_speed, klereo_name)
@@ -109,10 +110,8 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
     def native_value(self):
         if self._optimistic_speed is not None:
             return self._optimistic_speed
-        for out in self.coordinator.data['outs']:
-            if out['index'] == FILTRATION_OUT_INDEX:
-                return out['status']
-        return None
+        out = klereo_item(self.coordinator.data, "outs", FILTRATION_OUT_INDEX)
+        return out.get('status') if out else None
 
     async def async_set_native_value(self, value: float) -> None:
         pool_data = self.coordinator.data
@@ -135,11 +134,8 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
                 translation_key="out_read_only",
                 translation_placeholders={"name": self._name},
             )
-        mode = None
-        for out in pool_data['outs']:
-            if out['index'] == FILTRATION_OUT_INDEX:
-                mode = out['mode']
-                break
+        out = klereo_item(pool_data, "outs", FILTRATION_OUT_INDEX)
+        mode = out.get('mode') if out else None
         speed = int(value)
         rule = states.get(mode)
         if rule is None or not rule.speed or speed not in rule.states:
@@ -159,9 +155,7 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
             )
         LOGGER.debug("Setting filtration speed of #%s to %s (mode %s)",
                      self._poolid, speed, mode)
-        reply = await self.hass.async_add_executor_job(
-            self._api.set_out, FILTRATION_OUT_INDEX, speed, mode
-        )
+        reply = await self._send(self._api.set_out, FILTRATION_OUT_INDEX, speed, mode)
         self._optimistic_speed = speed
         self.async_write_ha_state()
         self._follow_command(reply, f"{self._name} = {speed}")
@@ -247,9 +241,7 @@ class KlereoWaterSetpoint(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
         # be a discrepancy this entity invented.
         value = round(value, 1)
         LOGGER.debug("Setting water setpoint of #%s to %s", self._poolid, value)
-        reply = await self.hass.async_add_executor_job(
-            self._api.set_param, SETPOINT_PARAM, value
-        )
+        reply = await self._send(self._api.set_param, SETPOINT_PARAM, value)
         self._optimistic_value = value
         self.async_write_ha_state()
         self._follow_command(reply, f"{self._name} = {value}")

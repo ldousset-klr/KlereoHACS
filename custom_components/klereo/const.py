@@ -568,7 +568,7 @@ SETPOINT_PARAM = "ConsigneEau"
 # not keep.
 SETPOINT_STEP = 0.1
 
-# **Provisional**: the firmware's own limits have not been supplied.
+# 0-40 °C, confirmed by the codeowner.
 # params.EauMin/EauMax exist but are the water probe's alarm thresholds, which
 # is not the same thing, so they are not used here. These constrain the control
 # only — the reading is published as the payload gives it, so a value outside

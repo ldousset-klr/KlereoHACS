@@ -15,7 +15,7 @@ def test_setpoint(check):
     def build(p):
         c = Coordinator(p); added=[]
         class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-        class E: entry_id='e'
+        class E: entry_id='e'; data={}
         run(number_setup(H(), E(), lambda es: added.extend(es)))
         return c, added
     print("== l'entité existe et affiche la consigne ==")

@@ -75,7 +75,7 @@ def test_heat(check):
                      (None,             [0,1,2,5,6,7,8,9,10,11,12,13,14,15])):
         c = Coordinator(pool([out(i,0) for i in range(16)], hm)); added=[]
         class H(Hass): data = {'klereo': {'e': {'coordinator': c, 'api': Api()}}}
-        class E: entry_id='e'
+        class E: entry_id='e'; data={}
         run(select_setup(H(), E(), lambda es: added.extend(es)))
         check(f"HeaterMode {hm}", sorted(e._index for e in added), want)
     print("== non-régression : sorties toujours en lecture seule ==")

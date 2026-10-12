@@ -5,6 +5,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    CONF_SERVER,
     DOMAIN,
     FILTRATION_OUT_INDEX,
     OUT_ICONS,
@@ -15,7 +16,8 @@ from .const import (
     OUT_STATUS_UNKNOWN,
 )
 from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
-                     klereo_device_info, klereo_io_names, klereo_out_mode_name,
+                     klereo_device_info, klereo_io_names, klereo_item,
+                     klereo_items, klereo_out_mode_name,
                      klereo_out_mode_states, klereo_out_refusal)
 
 import logging
@@ -23,22 +25,18 @@ LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     
-    LOGGER.info(f"Setting up switches...")
-    # Get infos from coordinator
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     api = hass.data[DOMAIN][config_entry.entry_id]["api"]
-    pool_data=coordinator.data;
-    outs = pool_data["outs"]
+    pool_data = coordinator.data
     poolid = pool_data['idSystem']
-    device_info = klereo_device_info(pool_data, poolid)
+    device_info = klereo_device_info(pool_data, poolid,
+                                     config_entry.data.get(CONF_SERVER))
     names = klereo_io_names(pool_data, IO_TYPE_OUT)
-    # Add switches
     switches = []
-    for out in outs:
-        LOGGER.info(f"Adding out for #{poolid}: {out}")
-        switches.append(KlereoOut(api,coordinator,out,poolid,device_info,
+    for out in klereo_items(pool_data, "outs"):
+        LOGGER.debug("Adding out for #%s: %s", poolid, out)
+        switches.append(KlereoOut(api, coordinator, out, poolid, device_info,
                                   names.get(out['index'])))
-    #add switch enitities
     async_add_entities(switches)
 
 
@@ -105,10 +103,7 @@ class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEnti
     @callback
     def _out(self):
         """Return this out in the freshest payload, or None if it vanished."""
-        for out in self.coordinator.data['outs']:
-            if out['index'] == self._index:
-                return out
-        return None
+        return klereo_item(self.coordinator.data, "outs", self._index)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -126,19 +121,17 @@ class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEnti
     def is_on(self):
         if self._optimistic_state is not None:
             return self._optimistic_state
-        outs = self.coordinator.data['outs']
-        for out in outs:
-            if out['index'] == self._index:
-                status = out['status']
-                LOGGER.debug(f"{self._name}={status}")
-                if self._index == FILTRATION_OUT_INDEX:
-                    # Speed index 0-7: any speed means the pump runs.
-                    return status != OUT_STATUS_OFF
-                if status == OUT_STATUS_UNKNOWN:
-                    # The controller does not know: report unknown, not off.
-                    return None
-                return status == OUT_STATUS_ON
-        return None
+        out = self._out()
+        status = out.get('status') if out else None
+        if status is None:
+            return None
+        if self._index == FILTRATION_OUT_INDEX:
+            # Speed index 0-7: any speed means the pump runs.
+            return status != OUT_STATUS_OFF
+        if status == OUT_STATUS_UNKNOWN:
+            # The controller does not know: report unknown, not off.
+            return None
+        return status == OUT_STATUS_ON
 
     @property
     def unique_id(self):
@@ -146,24 +139,23 @@ class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEnti
 
     @property
     def extra_state_attributes(self):
-        outs = self.coordinator.data['outs']
-        for out in outs:
-            if out['index'] == self._index:
-                attrs = {
-                    'Time': out['updateTime'],
-                    'Type': out['type'],
-                    'Mode': out['mode'],
-                    # Reserved values have no name; the raw number stays above.
-                    'ModeName': klereo_out_mode_name(self.coordinator.data,
-                                                     self._index, out['mode']),
-                    'RealStatus': out['realStatus'],
-                }
-                if self._index == FILTRATION_OUT_INDEX:
-                    # Published so a restart can read it back, and so the speed
-                    # the switch would resume is visible rather than implied.
-                    attrs['LastSpeed'] = self._last_speed
-                return attrs
-        return None
+        out = self._out()
+        if out is None:
+            return None
+        attrs = {
+            'Time': out.get('updateTime'),
+            'Type': out.get('type'),
+            'Mode': out.get('mode'),
+            # Reserved values have no name; the raw number stays above.
+            'ModeName': klereo_out_mode_name(self.coordinator.data,
+                                             self._index, out.get('mode')),
+            'RealStatus': out.get('realStatus'),
+        }
+        if self._index == FILTRATION_OUT_INDEX:
+            # Published so a restart can read it back, and so the speed the
+            # switch would resume is visible rather than implied.
+            attrs['LastSpeed'] = self._last_speed
+        return attrs
 
     def _mode_and_rule(self):
         """This out's current mode and its rule, or raise if it cannot be written.
@@ -189,7 +181,7 @@ class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEnti
                 translation_placeholders={"name": self._name},
             )
         out = self._out()
-        mode = out['mode'] if out else None
+        mode = out.get('mode') if out else None
         return mode, states.get(mode)
 
     def _writable_mode(self, state, mode=None, rule=None):
@@ -237,18 +229,14 @@ class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEnti
         mode, rule = self._mode_and_rule()
         state = self._on_state(rule)
         self._writable_mode(state, mode, rule)
-        reply = await self.hass.async_add_executor_job(
-            self._api.set_out, self._index, state, mode
-        )
+        reply = await self._send(self._api.set_out, self._index, state, mode)
         self._optimistic_state = True
         self.async_write_ha_state()
         self._follow_command(reply, f"{self._name} on")
 
     async def async_turn_off(self, **kwargs):
         mode = self._writable_mode(OUT_STATUS_OFF)
-        reply = await self.hass.async_add_executor_job(
-            self._api.turn_off_device, self._index, mode
-        )
+        reply = await self._send(self._api.turn_off_device, self._index, mode)
         self._optimistic_state = False
         self.async_write_ha_state()
         self._follow_command(reply, f"{self._name} off")
