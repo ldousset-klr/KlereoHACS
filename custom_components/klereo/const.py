@@ -3,7 +3,13 @@ from collections import namedtuple
 
 DOMAIN = "klereo"
 CONF_USERNAME = "username"
+# What the user types, and never stored: the flows hash it on the spot, and an
+# entry from before 1.6.0 has it replaced by its hash when it migrates.
 CONF_PASSWORD = "password"
+# What the entry stores: the SHA-1 GetJWT.php expects. It still opens the
+# account, being exactly what the server checks, so it is a secret like the
+# password was — but it no longer gives away a password reused elsewhere.
+CONF_PASSWORD_HASH = "password_hash"
 CONF_POOLID = "poolid"
 CONF_SERVER = "server"
 CONF_SCAN_INTERVAL = "scan_interval"

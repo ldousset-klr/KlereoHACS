@@ -47,7 +47,7 @@ def api(monkeypatch):
 @pytest.fixture
 def entry(hass):
     """The pool's config entry, added to Home Assistant but not set up."""
-    entry = MockConfigEntry(domain=const.DOMAIN, unique_id=str(POOLID),
+    entry = MockConfigEntry(domain=const.DOMAIN, unique_id=str(POOLID), version=2,
                             title="Test pool", data=dict(DATA))
     entry.add_to_hass(hass)
     return entry

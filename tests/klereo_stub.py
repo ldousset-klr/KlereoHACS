@@ -73,6 +73,7 @@ _h.config_validation = cv
 
 class _Entity:
     hass = None
+    name = None              # Home Assistant's, translated; the suites read _name
     _attr_device_info = None
     _attr_icon = None
     def async_write_ha_state(self): pass
@@ -111,7 +112,14 @@ class CoordinatorEntity:
     def _handle_coordinator_update(self): pass
     async def async_will_remove_from_hass(self): pass
 upd.CoordinatorEntity = CoordinatorEntity
-upd.DataUpdateCoordinator = object
+class DataUpdateCoordinator:
+    """Keeps what it is built with; the first refresh fetches nothing."""
+    def __init__(self, hass, logger, *, config_entry=None, name=None,
+                 update_interval=None, update_method=None):
+        self.hass = hass; self.config_entry = config_entry; self.name = name
+        self.update_interval = update_interval; self.data = None
+    async def async_config_entry_first_refresh(self): pass
+upd.DataUpdateCoordinator = DataUpdateCoordinator
 class UpdateFailed(Exception): pass
 upd.UpdateFailed = UpdateFailed
 exc.ConfigEntryAuthFailed = type('ConfigEntryAuthFailed', (Exception,), {})
@@ -170,6 +178,7 @@ class FakeEntry:
     """Comme ConfigEntry : garde ses tâches de fond et les annule au unload."""
     entry_id = 'e'
     data = {}
+    runtime_data = None
     def __init__(self): self.tasks = []
     def async_create_background_task(self, hass, coro, name, eager_start=True):
         t = hass.async_create_task(coro)
@@ -181,10 +190,18 @@ class FakeEntry:
         self.tasks.clear()
 
 class Coordinator:
-    def __init__(self, data):
+    def __init__(self, data, api=None):
         self.data = data
+        self.api = api if api is not None else Api()
         self.config_entry = FakeEntry()
     async def async_request_refresh(self): pass
+
+def entry_for(coordinator, data=None):
+    """The entry a platform is set up from: the coordinator is its runtime_data."""
+    entry = FakeEntry()
+    entry.data = dict(data or {})
+    entry.runtime_data = coordinator
+    return entry
 
 LOOP = asyncio.new_event_loop()
 asyncio.set_event_loop(LOOP)

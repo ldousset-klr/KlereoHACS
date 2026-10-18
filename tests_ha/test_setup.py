@@ -13,7 +13,7 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.klereo.const import DOMAIN
 from custom_components.klereo.klereo_api import KlereoAuthError, KlereoError
 
-from pool import DATA, POOLID
+from pool import DATA, PASSWORD, PASSWORD_HASH, POOLID
 
 # Every entity the synthetic pool gives, by unique_id. A change here is a
 # change to what existing installs are keyed on — deliberate or not, it shows.
@@ -51,7 +51,7 @@ async def _jump(hass, seconds):
 
 
 def _coordinator(hass, entry):
-    return hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    return entry.runtime_data
 
 
 async def test_device(hass, loaded):
@@ -144,7 +144,8 @@ async def test_options_change_reloads_on_the_new_interval(hass, api, loaded):
 async def test_data_update_does_not_reload(hass, loaded):
     """Reauth and reconfigure reload on their own; the listener must not add one."""
     before = _coordinator(hass, loaded)
-    hass.config_entries.async_update_entry(loaded, data={**loaded.data, "password": "new"})
+    hass.config_entries.async_update_entry(loaded, data={**loaded.data,
+                                                         "password_hash": "new"})
     await hass.async_block_till_done()
     assert _coordinator(hass, loaded) is before
 
@@ -153,7 +154,8 @@ async def test_unload(hass, loaded):
     assert await hass.config_entries.async_unload(loaded.entry_id)
     await hass.async_block_till_done()
     assert loaded.state is ConfigEntryState.NOT_LOADED
-    assert loaded.entry_id not in hass.data[DOMAIN]
+    assert not hasattr(loaded, "runtime_data")       # Home Assistant drops it
+    assert DOMAIN not in hass.data                    # and nothing else was kept
     assert hass.states.get("switch.test_pool_spots").state == "unavailable"
 
 
@@ -175,7 +177,7 @@ async def test_server_down_retries(hass, api, entry):
 
 
 async def test_unique_id_backfilled(hass, api):
-    entry = MockConfigEntry(domain=DOMAIN, title="Old", data=dict(DATA))
+    entry = MockConfigEntry(domain=DOMAIN, title="Old", version=2, data=dict(DATA))
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -183,7 +185,7 @@ async def test_unique_id_backfilled(hass, api):
 
 
 async def test_device_links_to_the_entry_server(hass, api):
-    entry = MockConfigEntry(domain=DOMAIN, unique_id=str(POOLID), title="Dev",
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=str(POOLID), title="Dev", version=2,
                             data={**DATA, "server": "https://dev.example/php"})
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -202,3 +204,38 @@ async def test_missing_sections(hass, api, entry):
     uids = {e.unique_id for e in _entities(hass, entry)}
     assert not any("probe" in uid or "out" in uid for uid in uids)
     assert "id_klereo115pin" in uids
+
+
+async def test_runtime_data(hass, api, loaded):
+    """The coordinator is the entry's runtime_data, and carries the API."""
+    coordinator = loaded.runtime_data
+    assert type(coordinator).__name__ == "KlereoCoordinator"
+    assert coordinator.api.poolid == POOLID
+    assert coordinator.config_entry is loaded
+    assert DOMAIN not in hass.data
+
+
+async def test_migration_hashes_the_password(hass, api):
+    """A version 1 entry stored the password: it is replaced by its hash."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=str(POOLID), title="Old", version=1,
+                            data={"username": "user@example.com", "password": PASSWORD,
+                                  "poolid": POOLID, "server": DATA["server"]})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.version == 2
+    assert entry.data == DATA
+    assert "password" not in entry.data
+    # Logged in with the very hash GetJWT was always sent.
+    assert api.made[-1] == ("user@example.com", PASSWORD_HASH, POOLID, DATA["server"])
+
+
+async def test_newer_entry_is_refused(hass, api):
+    """An entry from a later release is left alone rather than misread."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=str(POOLID), title="New", version=3,
+                            data=dict(DATA))
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
+    assert entry.data == DATA

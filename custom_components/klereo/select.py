@@ -16,8 +16,8 @@ LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Expose each writable out's drive mode as a select."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    api = hass.data[DOMAIN][config_entry.entry_id]["api"]
+    coordinator = config_entry.runtime_data
+    api = coordinator.api
     pool_data = coordinator.data
     poolid = pool_data['idSystem']
     device_info = klereo_device_info(pool_data, poolid,
@@ -48,6 +48,8 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
     """
 
     _attr_has_entity_name = True   # "<pool> <name>": see klereo_device_info()
+    # "{out} mode" in strings.json, the out's own name filling the placeholder.
+    _attr_translation_key = "out_mode"
     _attr_icon = ICON_OUT_MODE
 
     def __init__(self, api, coordinator, out, poolid, device_info, klereo_name=None):
@@ -61,7 +63,8 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
         self._key = f"klereo{poolid}out{self._index}mode"
         base = (klereo_name or OUT_LABELS.get(self._index)
                 or f"klereo{poolid}out{self._index}")
-        self._name = f"{base} mode"
+        self._attr_translation_placeholders = {"out": base}
+        self._name = f"{base} mode"        # the log's, and the English name
         # The water-treatment outs ship disabled: see OUTS_DISABLED_BY_DEFAULT.
         self._attr_entity_registry_enabled_default = (
             self._index not in OUTS_DISABLED_BY_DEFAULT
@@ -94,10 +97,6 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
         # (mobile app, controller front panel) shows again.
         self._optimistic_mode = None
         super()._handle_coordinator_update()
-
-    @property
-    def name(self):
-        return self._name
 
     @property
     def unique_id(self):
@@ -150,7 +149,7 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
             translation_domain=DOMAIN,
             translation_key="out_mode_ambiguous_state",
             translation_placeholders={
-                "name": self._name,
+                "name": self._shown_name,
                 "mode": klereo_out_mode_name(self.coordinator.data,
                                              self._index, mode) or str(mode),
             },
@@ -163,7 +162,7 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
                 translation_domain=DOMAIN,
                 translation_key=refusal,
                 translation_placeholders={
-                    "name": self._name,
+                    "name": self._shown_name,
                     "access": str(klereo_access(self.coordinator.data)),
                 },
             )

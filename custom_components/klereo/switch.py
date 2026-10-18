@@ -25,8 +25,8 @@ LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    api = hass.data[DOMAIN][config_entry.entry_id]["api"]
+    coordinator = config_entry.runtime_data
+    api = coordinator.api
     pool_data = coordinator.data
     poolid = pool_data['idSystem']
     device_info = klereo_device_info(pool_data, poolid,

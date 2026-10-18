@@ -1,5 +1,5 @@
 """Vérifie le volume d’eau."""
-from klereo_stub import Api, Coordinator, Hass, run
+from klereo_stub import Api, Coordinator, Hass, run, entry_for
 
 
 def test_volume(check):
@@ -10,9 +10,8 @@ def test_volume(check):
         d.update(over); return d
     def build(p):
         c = Coordinator(p); added=[]
-        class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-        class E: entry_id='e'; data={}
-        run(sensor_setup(H(), E(), lambda es: added.extend(es)))
+        entry = entry_for(c)
+        run(sensor_setup(Hass(), entry, lambda es: added.extend(es)))
         return c, {e._key.replace('klereo115',''): e for e in added if isinstance(e, KlereoInfoSensor)}
     print("== le capteur est créé et rapporte la valeur ==")
     c, info = build(pool())

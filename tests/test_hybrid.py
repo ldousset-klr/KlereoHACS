@@ -1,5 +1,5 @@
 """Vérifie le chlore hybride."""
-from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run
+from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run, entry_for
 
 
 def test_hybrid(check):
@@ -51,9 +51,8 @@ def test_hybrid(check):
     print("== plus aucune sortie en lecture seule inconditionnelle ==")
     c = Coordinator(pool([out(i,2 if i in (3,15) else 0) for i in range(16)]))
     added=[]
-    class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-    class E: entry_id='e'; data={}
-    run(select_setup(H(), E(), lambda es: added.extend(es)))
+    entry = entry_for(c)
+    run(select_setup(Hass(), entry, lambda es: added.extend(es)))
     check("sélecteurs sur les 16 sorties", sorted(e._index for e in added), list(range(16)))
     readonly=[]
     for i in range(16):

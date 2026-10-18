@@ -1,5 +1,5 @@
 """Vérifie le désinfectant et params.TraitMode."""
-from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run
+from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run, entry_for
 
 
 def test_trait(check):
@@ -96,9 +96,8 @@ def test_trait(check):
                                 (TRAIT_NONE,   HEATER_PAC_KLINK, [0,1,2,4,5,6,7,8,9,10,11,12,13,14,15]),
                                 (TRAIT_BROME,  None,             [0,1,2,3,5,6,7,8,9,10,11,12,13,14,15])):
         c = Coordinator(pool([out(i,0) for i in range(16)], trait=trait, heater=heater)); added=[]
-        class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-        class E: entry_id='e'; data={}
-        run(select_setup(H(), E(), lambda es: added.extend(es)))
+        entry = entry_for(c)
+        run(select_setup(Hass(), entry, lambda es: added.extend(es)))
         check(f"TraitMode {trait} / HeaterMode {heater}", sorted(e._index for e in added), want)
     print()
 

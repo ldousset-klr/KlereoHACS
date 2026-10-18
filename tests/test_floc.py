@@ -1,5 +1,5 @@
 """Vérifie le floculant."""
-from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run
+from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run, entry_for
 
 
 def test_floc(check):
@@ -50,9 +50,8 @@ def test_floc(check):
         except ServiceValidationError as e: got = e.key
         check(f"out{i} ({label})", got, 'out_read_only')
     c4 = Coordinator(pool([out(i,0) for i in range(16)], HEATER_PAC_KLINK)); added=[]
-    class H(Hass): data={'klereo':{'e':{'coordinator':c4,'api':Api()}}}
-    class E: entry_id='e'; data={}
-    run(select_setup(H(), E(), lambda es: added.extend(es)))
+    entry = entry_for(c4)
+    run(select_setup(Hass(), entry, lambda es: added.extend(es)))
     check("sélecteurs", sorted(e._index for e in added), [0,1,2,4,5,6,7,8,9,10,11,12,13,14,15])
     print()
 

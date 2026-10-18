@@ -18,8 +18,8 @@ LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Expose the filtration speed and the water setpoint, where the pool has them."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    api = hass.data[DOMAIN][config_entry.entry_id]["api"]
+    coordinator = config_entry.runtime_data
+    api = coordinator.api
     pool_data = coordinator.data
     poolid = pool_data['idSystem']
     device_info = klereo_device_info(pool_data, poolid,
@@ -73,6 +73,8 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
     """The filtration out's status read and written as a speed index."""
 
     _attr_has_entity_name = True   # "<pool> <name>": see klereo_device_info()
+    # "{out} speed" in strings.json, the out's own name filling the placeholder.
+    _attr_translation_key = "filtration_speed"
     _attr_icon = ICON_FILTRATION_SPEED
     _attr_native_min_value = 0
     _attr_native_step = 1
@@ -87,7 +89,8 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
         self._key = f"klereo{poolid}out{FILTRATION_OUT_INDEX}speed"
         base = (klereo_name or OUT_LABELS.get(FILTRATION_OUT_INDEX)
                 or f"klereo{poolid}out{FILTRATION_OUT_INDEX}")
-        self._name = f"{base} speed"
+        self._attr_translation_placeholders = {"out": base}
+        self._name = f"{base} speed"       # the log's, and the English name
         self._optimistic_speed = None
 
     def _clear_optimistic(self):
@@ -97,10 +100,6 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
     def _handle_coordinator_update(self) -> None:
         self._optimistic_speed = None
         super()._handle_coordinator_update()
-
-    @property
-    def name(self):
-        return self._name
 
     @property
     def unique_id(self):
@@ -123,7 +122,7 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
                 translation_domain=DOMAIN,
                 translation_key=refusal,
                 translation_placeholders={
-                    "name": self._name,
+                    "name": self._shown_name,
                     "access": str(klereo_access(pool_data)),
                 },
             )
@@ -132,7 +131,7 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="out_read_only",
-                translation_placeholders={"name": self._name},
+                translation_placeholders={"name": self._shown_name},
             )
         out = klereo_item(pool_data, "outs", FILTRATION_OUT_INDEX)
         mode = out.get('mode') if out else None
@@ -148,7 +147,7 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
                 translation_domain=DOMAIN,
                 translation_key="out_speed_not_settable",
                 translation_placeholders={
-                    "name": self._name,
+                    "name": self._shown_name,
                     "mode": klereo_out_mode_name(pool_data, FILTRATION_OUT_INDEX,
                                                  mode) or str(mode),
                 },
@@ -177,6 +176,7 @@ class KlereoWaterSetpoint(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
     """
 
     _attr_has_entity_name = True   # "<pool> <name>": see klereo_device_info()
+    _attr_translation_key = "water_setpoint"
     _attr_device_class = "temperature"
     _attr_native_unit_of_measurement = "°C"
     _attr_native_min_value = SETPOINT_MIN
@@ -191,7 +191,7 @@ class KlereoWaterSetpoint(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
         # Named for the role, as everything else here is, and keyed on it too:
         # unique_id follows _key and must outlive any relabelling.
         self._key = f"klereo{poolid}watersetpoint"
-        self._name = "Water setpoint"
+        self._name = "Water setpoint"     # the log's; the UI's is translated
         # Held between a write and the next successful poll.
         self._optimistic_value = None
 
@@ -204,10 +204,6 @@ class KlereoWaterSetpoint(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
         # made on the front panel or in the mobile app must show through.
         self._optimistic_value = None
         super()._handle_coordinator_update()
-
-    @property
-    def name(self):
-        return self._name
 
     @property
     def unique_id(self):
@@ -231,7 +227,7 @@ class KlereoWaterSetpoint(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
                 translation_domain=DOMAIN,
                 translation_key="account_read_only",
                 translation_placeholders={
-                    "name": self._name,
+                    "name": self._shown_name,
                     "access": str(klereo_access(pool_data)),
                 },
             )

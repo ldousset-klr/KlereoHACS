@@ -1,5 +1,5 @@
 """Vérifie le sélecteur de mode et les refus du switch."""
-from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run
+from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run, entry_for
 
 
 def test_modes(check):
@@ -36,10 +36,8 @@ def test_modes(check):
     outs = [out(i, 0) for i in range(16)]
     c2 = Coordinator(pool(outs))
     added = []
-    class HassData(Hass):
-        data = {'klereo': {'e': {'coordinator': c2, 'api': Api()}}}
-    class Entry: entry_id = 'e'; data = {}
-    run(select_setup(HassData(), Entry(), lambda es: added.extend(es)))
+    entry = entry_for(c2)
+    run(select_setup(Hass(), entry, lambda es: added.extend(es)))
     check("index équipés", sorted(e._index for e in added), sorted(set(OUT_MODE_STATES) | {1}))
     check("filtration incluse", 1 in [e._index for e in added], True)
     check("désinfectant sans TraitMode exclu", [i for i in (3,) if i in [e._index for e in added]], [])

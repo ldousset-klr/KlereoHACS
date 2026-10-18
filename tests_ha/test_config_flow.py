@@ -10,9 +10,9 @@ from homeassistant.config_entries import (
 from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.klereo.const import DEF_SERVER, DOMAIN
-from custom_components.klereo.klereo_api import KlereoAuthError, KlereoError
+from custom_components.klereo.klereo_api import KlereoAuthError, KlereoError, hash_password
 
-from pool import DATA, POOLID
+from pool import DATA, PASSWORD_HASH, POOLID
 
 LOGIN = {"username": "user@example.com", "password": "secret", "server": DEF_SERVER}
 
@@ -30,10 +30,11 @@ async def test_user_picks_a_pool(hass, api):
         result["flow_id"], {"poolid": str(POOLID)})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Test pool"
-    assert result["data"] == DATA
+    assert result["data"] == DATA                    # the hash, not the password
     assert result["result"].unique_id == str(POOLID)
+    assert result["result"].version == 2
     # The pool was read before the entry was created, on the server typed in.
-    assert api.made[-1] == ("user@example.com", "secret", POOLID, DEF_SERVER)
+    assert api.made[-1] == ("user@example.com", PASSWORD_HASH, POOLID, DEF_SERVER)
 
 
 async def test_configured_pool_is_not_offered_again(hass, api, entry):
@@ -88,7 +89,8 @@ async def test_reauth(hass, api, loaded):
         result["flow_id"], {"username": "user@example.com", "password": "renewed"})
     await hass.async_block_till_done()
     assert (result["type"], result["reason"]) == (FlowResultType.ABORT, "reauth_successful")
-    assert loaded.data["password"] == "renewed"
+    assert loaded.data["password_hash"] == hash_password("renewed")
+    assert "password" not in loaded.data
 
 
 async def _reconfigure(hass, entry):
@@ -105,10 +107,12 @@ async def test_reconfigure(hass, api, loaded):
     await hass.async_block_till_done()
     assert (result["type"], result["reason"]) == (FlowResultType.ABORT,
                                                   "reconfigure_successful")
-    assert loaded.data == {"username": "other@example.com", "password": "p2",
+    assert loaded.data == {"username": "other@example.com",
+                           "password_hash": hash_password("p2"),
                            "poolid": POOLID, "server": "https://dev.example"}
     # Validated against the new server, on the same pool, and running on it.
-    assert ("other@example.com", "p2", POOLID, "https://dev.example") in api.made
+    assert ("other@example.com", hash_password("p2"), POOLID,
+            "https://dev.example") in api.made
     assert api.made[-1][3] == "https://dev.example"
 
 

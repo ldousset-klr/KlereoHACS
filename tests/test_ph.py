@@ -1,5 +1,5 @@
 """Vérifie le correcteur pH."""
-from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run
+from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run, entry_for
 
 
 def test_ph(check):
@@ -77,9 +77,8 @@ def test_ph(check):
     print("== quelles sorties reçoivent un sélecteur ==")
     c6 = Coordinator(pool([out(i, 0) for i in range(16)]))
     added=[]
-    class H(Hass): data = {'klereo': {'e': {'coordinator': c6, 'api': Api()}}}
-    class E: entry_id='e'; data={}
-    run(select_setup(H(), E(), lambda es: added.extend(es)))
+    entry = entry_for(c6)
+    run(select_setup(Hass(), entry, lambda es: added.extend(es)))
     check("index équipés", sorted(e._index for e in added), [0,1,2,5,6,7,8,9,10,11,12,13,14,15])
     print()
 

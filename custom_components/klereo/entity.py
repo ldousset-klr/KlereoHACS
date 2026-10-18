@@ -255,6 +255,17 @@ class KlereoCommandMixin:
         """Drop whatever this entity is showing ahead of the payload."""
         raise NotImplementedError
 
+    @property
+    def _shown_name(self):
+        """The name the user sees, for the messages a refused write raises.
+
+        An entity named through translation_key reads its name from
+        strings.json in Home Assistant's language once added; _name is the
+        English label it falls back on before that, and the one the log uses.
+        """
+        name = self.name if self.hass is not None else None
+        return name if isinstance(name, str) and name else self._name
+
     async def _send(self, func, *args):
         """Run a write in the executor; a Klereo failure becomes a readable error.
 
@@ -268,7 +279,8 @@ class KlereoCommandMixin:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="command_failed",
-                translation_placeholders={"name": self._name, "error": str(err)},
+                translation_placeholders={"name": self._shown_name,
+                                          "error": str(err)},
             ) from err
 
     def _follow_command(self, reply, what):
@@ -289,7 +301,7 @@ class KlereoCommandMixin:
         # Tied to the config entry, which cancels its background tasks when it
         # unloads. Otherwise a reload or a shutdown mid-confirmation leaves the
         # task to write state onto an entity that no longer exists, and to
-        # refresh a coordinator whose api has been dropped from hass.data.
+        # refresh a coordinator whose entry has been unloaded.
         self._confirm_task = entry.async_create_background_task(
             self.hass, coro, f"{DOMAIN} confirm: {what}"
         )

@@ -68,6 +68,12 @@ no longer end up with `sensor.pin` and `sensor.pin_2`. Entities added before 1.5
 their entity IDs — and so their history and automations — and only gain the prefix on
 screen.
 
+The names the integration gives itself — the setpoint, the speed and mode controls, the
+diagnostic sensors — follow Home Assistant's language, French or English: *Consigne eau*,
+*Mode Spots*, *Durée de filtration*. On a new install in French, Home Assistant also
+builds their entity IDs in French (`number.maison_consigne_eau`); an existing install
+keeps the IDs it already has.
+
 Data refreshes every 5 minutes by default; see *Configuration* to change it.
 
 ## Installation
@@ -93,6 +99,12 @@ The *Server* field on the first screen exists for testing against another Klereo
 Leave it alone unless you know why you are changing it — **your credentials are sent to
 whatever address it holds**.
 
+**Your password is not stored.** Home Assistant keeps only its SHA-1 hash, which is what
+Klereo checks — so a password you use elsewhere is not kept in clear. The hash still
+opens your Klereo account: treat a Home Assistant backup as you would the password.
+Pools added before 1.6.0 are converted automatically on the first start; going back to an
+earlier release afterwards means adding the pool again.
+
 Once the pool is added, two menus on its entry change it without removing it — and so
 without losing its entities or their history:
 
@@ -105,7 +117,7 @@ without losing its entities or their history:
 
 **Download diagnostics**, in the same ⋮ menu, saves what Home Assistant received from
 Klereo to a JSON file, ready to attach to a GitHub issue. It holds only what the
-integration reads — probes, outputs, settings — with your username, password, pod serial,
+integration reads — probes, outputs, settings — with your username, password hash, pod serial,
 PIN and pool name masked; anything else the controller sends, such as an address, is
 listed by name only.
 

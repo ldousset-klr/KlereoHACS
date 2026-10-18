@@ -104,8 +104,9 @@ credential disclosure, not just a connection failure.
   `get_index()`/`list_pools()` need no poolID — that is what lets the config flow list an
   account's pools before one is chosen, and why `poolid` is optional on the constructor.
   Every
-  authenticated call goes through `_post()`, which lazily calls `get_jwt()` (SHA-1 of the
-  password POSTed to `GetJWT.php`), sends `Authorization: Bearer <jwt>`, and on a 401/403
+  authenticated call goes through `_post()`, which lazily calls `get_jwt()` (the SHA-1 of
+  the password POSTed to `GetJWT.php` — the API is **built from that hash**, the entry's
+  `password_hash`, and never sees the password; `hash_password()` makes it), sends `Authorization: Bearer <jwt>`, and on a 401/403
   clears the token and replays the request **once** before `raise_for_status()`. Every
   request carries `timeout=HTTP_TIMEOUT` (30 s) so a hung server cannot pin an executor
   thread, and all of them share one `requests.Session` so the five endpoints stop paying
@@ -118,16 +119,26 @@ credential disclosure, not just a connection failure.
   when that error text matches `AUTH_HINTS` it is treated like a 401. **Those hints are a
   heuristic** — no real expired-token payload has been observed yet, so confirm them
   against a live capture before relying on them.
-- `__init__.py` — `async_setup_entry` builds the `KlereoAPI`, wraps `api.get_pool` in
-  `hass.async_add_executor_job` (this is the bridge between HA's async world and the
-  blocking `requests` calls), and drives a `DataUpdateCoordinator` polling at
+- `__init__.py` / `coordinator.py` — `async_setup_entry` builds the `KlereoAPI` and a
+  `KlereoCoordinator`, the `DataUpdateCoordinator` subclass that carries it as `.api` and
+  whose `_async_update_data` wraps `api.get_pool` in `hass.async_add_executor_job` (this
+  is the bridge between HA's async world and the blocking `requests` calls), polling at
   `scan_interval(entry.options)` — `UPDATE_INTERVAL` (300 s) unless the options flow set
   another, clamped to `SCAN_INTERVAL_MIN`..`MAX` (300..3600 s). **The floor is the default** — the
   codeowner's call, every poll being a request to the Klereo server: the interval can be
-  lengthened, never shortened below 300 s. Coordinator + api are stashed in
-  `hass.data[DOMAIN][entry.entry_id]` for the platforms.
+  lengthened, never shortened below 300 s. **The coordinator is the entry's
+  `runtime_data`** — the platforms take the payload and the API from it, the listener
+  and the diagnostics read it with `getattr(entry, "runtime_data", None)`, and Home
+  Assistant drops it on unload; nothing lives in `hass.data`.
   `PLATFORMS = ["sensor", "switch", "number", "select"]`.
-  The update callback maps `KlereoAuthError` to `ConfigEntryAuthFailed` (triggering the
+  `async_migrate_entry` takes a **version 1** entry, which stored the password, to
+  **version 2**, which stores `password_hash` — the same hash `GetJWT` was always sent, so
+  nobody retypes anything. Home Assistant refuses an entry newer than the flow's
+  `VERSION`, so going back to a release before 1.6.0 means adding the pool again; the
+  migration itself returns `False` on anything above 2. The hash still opens the account,
+  being exactly what the server checks: it is a secret, redacted from the diagnostics,
+  and what it buys is that a password reused elsewhere is no longer kept in clear.
+  The coordinator's update maps `KlereoAuthError` to `ConfigEntryAuthFailed` (triggering the
   reauth flow) and `KlereoError`/`RequestException` to `UpdateFailed`.
   `async_entry_updated` is the entry's update listener, and it **reloads only when the
   interval changed**: Home Assistant calls it on every `async_update_entry`, the reauth
@@ -188,6 +199,9 @@ credential disclosure, not just a connection failure.
   `ConfigEntryAuthFailed` the coordinator raises. Form error keys (`invalid_auth`,
   `cannot_connect`) must exist in `strings.json` **and** `translations/*.json` — HA reads
   the latter at runtime, so adding a key to only one of them shows a raw slug in the UI.
+  **The password is hashed the moment it is typed** — `user`, `reauth_confirm` and
+  `reconfigure` alike — and the entry holds `username`, `password_hash`, `server` and
+  `poolid`; `VERSION` is 2.
   The `user` step also takes the server, carried into the entry data and used by
   `list_pools()`, `_test_credentials()` and the coordinator alike, so a dev server is
   exercised end to end rather than only at setup.
@@ -201,8 +215,7 @@ credential disclosure, not just a connection failure.
   split between the two. Neither needs a migration: an entry without options polls every
   300 s.
   The entry's `unique_id` is the poolID, so a pool can only be configured once;
-  `async_setup_entry` backfills it on entries created before that existed. Entry data keeps
-  the same three keys, so nothing migrates.
+  `async_setup_entry` backfills it on entries created before that existed.
 - `number.py` — two entities, added independently: a pool may have either, both or
   neither. **The water setpoint** is `params.ConsigneEau`, the temperature the controller
   aims for, created whenever the payload carries it as a number — absent on a pool with no
@@ -260,7 +273,19 @@ credential disclosure, not just a connection failure.
   flag. **`unique_id` is built from
   `_key` and must never follow the name**, or renaming a probe in Klereo would orphan the
   entity and lose its history. `_name` is the `IORename` label when there is one, else
-  `_key`. `KlereoOut` is also a `RestoreEntity`, for the filtration alone: turning that
+  `_key`.
+  **The names the integration makes up itself are translated**: the diagnostic sensors
+  (`translation_key` = the `INFO_SENSORS` row's key), the water setpoint
+  (`water_setpoint`), and the speed and mode controls (`filtration_speed`, `out_mode`),
+  which carry the out's own name as the `{out}` placeholder — "Mode {out}" in French.
+  Those classes no longer override `name`, which is what lets Home Assistant read the
+  `entity` section of `strings.json`; `_name` stays as the English label for the log, and
+  `KlereoCommandMixin._shown_name` gives the translated one to error messages. A key
+  missing from a translation file leaves the entity **with no name of its own**, so
+  `tests_ha/test_translations.py` lists them all. Home Assistant builds a **new**
+  install's entity_ids in its own language for French, among others —
+  `number.<pool>_consigne_eau` — while an existing install keeps the English ones it was
+  given. Probe and out names, the user's or the firmware's, are never translated. `KlereoOut` is also a `RestoreEntity`, for the filtration alone: turning that
   out on has to name a speed, and **a stopped pump reports `status: 0`**, so the speed it
   was last running at is nowhere in the payload. `_learn_speed()` takes it from every poll
   that shows the pump running, `_on_state()` sends it back instead of `OUT_STATUS_ON`
@@ -417,8 +442,7 @@ instead, and sleeping between them frees the thread.
 `KlereoCommandMixin` in `entity.py` follows every write, as a task the **config entry**
 owns — `entry.async_create_background_task()`, which cancels on unload. `hass` owning it
 instead left a reload or a shutdown mid-confirmation free to write state onto an entity
-that no longer existed, and to refresh a coordinator whose api had been dropped from
-`hass.data`. **One confirmation per entity**, too: a second write cancels the first,
+that no longer existed, and to refresh a coordinator whose entry had been unloaded. **One confirmation per entity**, too: a second write cancels the first,
 whose verdict concerns a value nobody is showing any more and whose `_clear_optimistic()`
 would wipe the one the new write just set — two quick presses on a switch did exactly
 that. `async_will_remove_from_hass()` cancels as well, for an entity that goes on its own.

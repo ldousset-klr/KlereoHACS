@@ -1,5 +1,5 @@
 """Vérifie la consigne d’eau."""
-from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run
+from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run, entry_for
 
 
 def test_setpoint(check):
@@ -14,9 +14,8 @@ def test_setpoint(check):
                          'updateTime':0}] if outs is None else outs}
     def build(p):
         c = Coordinator(p); added=[]
-        class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-        class E: entry_id='e'; data={}
-        run(number_setup(H(), E(), lambda es: added.extend(es)))
+        entry = entry_for(c)
+        run(number_setup(Hass(), entry, lambda es: added.extend(es)))
         return c, added
     print("== l'entité existe et affiche la consigne ==")
     c, ents = build(pool())

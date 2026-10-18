@@ -1,5 +1,5 @@
 """Vérifie les quatre compteurs de marche."""
-from klereo_stub import Api, Coordinator, Hass, run
+from klereo_stub import Api, Coordinator, Hass, run, entry_for
 
 
 def test_counters(check):
@@ -16,9 +16,8 @@ def test_counters(check):
                 'params':params,'register':{'pin':'1234'},'device':0}
     def build(params):
         c = Coordinator(pool(params)); added=[]
-        class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-        class E: entry_id='e'; data={}
-        run(sensor_setup(H(), E(), lambda es: added.extend(es)))
+        entry = entry_for(c)
+        run(sensor_setup(Hass(), entry, lambda es: added.extend(es)))
         return c, {e._key.replace('klereo115',''): e for e in added if isinstance(e, KlereoInfoSensor)}
     print("== les quatre compteurs ==")
     c, info = build(dict(ALL))

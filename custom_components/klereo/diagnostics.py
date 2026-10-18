@@ -6,7 +6,7 @@ the pool's payload — by allowlist, not denylist.
 """
 from homeassistant.components.diagnostics import async_redact_data
 
-from .const import CONF_PASSWORD, CONF_USERNAME, DOMAIN
+from .const import CONF_PASSWORD, CONF_PASSWORD_HASH, CONF_USERNAME
 
 # The top-level keys of GetPoolDetails the integration reads, and so the ones
 # worth looking at when something is wrong. The payload carries more — the
@@ -23,13 +23,16 @@ PAYLOAD_KEYS = (
 # Kept, but still identifying the owner, the pod or the account: present as
 # **REDACTED** so their absence is not mistaken for the cause of a problem.
 # The entry's title is the pool's nickname.
-TO_REDACT = {CONF_USERNAME, CONF_PASSWORD, "poolNickname", "podSerial", "register",
-             "pin", "title"}
+# The password hash opens the account as surely as the password did; the
+# password itself is no longer stored, but stays listed for an entry not yet
+# migrated.
+TO_REDACT = {CONF_USERNAME, CONF_PASSWORD, CONF_PASSWORD_HASH, "poolNickname",
+             "podSerial", "register", "pin", "title"}
 
 
 async def async_get_config_entry_diagnostics(hass, entry):
-    runtime = hass.data.get(DOMAIN, {}).get(entry.entry_id)
-    coordinator = runtime["coordinator"] if runtime else None
+    # Absent while the entry is not loaded: the file then carries the entry alone.
+    coordinator = getattr(entry, "runtime_data", None)
     data = coordinator.data if coordinator else None
     pool = other_keys = None
     if isinstance(data, dict):
