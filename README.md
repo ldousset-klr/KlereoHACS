@@ -417,7 +417,6 @@ a heating or disinfectant whose controller does not say what it drives stays rea
 
 - **What `outs[].type` encodes.** It is not the output's role, and not the firmware's
   `e_OutTypes` either, so it is published as an attribute and nothing reads it.
-- **More translations.** French and English only.
 
 ## Disclaimer
 
