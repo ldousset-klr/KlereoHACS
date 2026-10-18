@@ -72,19 +72,28 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
         self._attr_entity_registry_enabled_default = (
             self._index not in OUTS_DISABLED_BY_DEFAULT
         )
-        # Offered in the firmware's own order, under this out's own wording.
-        # Resolved once here: the heating output's list depends on the payload,
-        # and HeaterMode is a rewiring, not something that changes under a poll.
-        pool_data = coordinator.data
-        self._states = klereo_out_mode_states(pool_data, self._index)
+        self._resolve_modes()
+        # Optimistic value held between a write and the next successful poll.
+        self._optimistic_mode = None
+
+    def _resolve_modes(self):
+        """The modes this out offers, from the freshest payload.
+
+        Offered in the firmware's own order, under this out's own wording. The
+        heating's and the disinfectant's lists follow HeaterMode and TraitMode,
+        and the filtration's Manuel follows PumpMaxSpeed, so they are resolved
+        again after every poll: a heater swapped for a heat pump, or chlorine
+        for bromine, shows its new modes without a reload. A kind no longer
+        established leaves no modes, and the entity unavailable.
+        """
+        pool_data = self.coordinator.data
+        self._states = klereo_out_mode_states(pool_data, self._index) or {}
         self._modes = {
             klereo_out_mode_name(pool_data, self._index, mode): mode
             for mode in self._states
             if klereo_out_mode_name(pool_data, self._index, mode) is not None
         }
         self._attr_options = list(self._modes)
-        # Optimistic value held between a write and the next successful poll.
-        self._optimistic_mode = None
 
     def _clear_optimistic(self):
         self._optimistic_mode = None
@@ -94,11 +103,18 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
         """Return this out in the freshest payload, or None if it vanished."""
         return klereo_item(self.coordinator.data, "outs", self._index)
 
+    @property
+    def available(self):
+        # Unavailable, not unknown, once the payload stops carrying it: the
+        # value is not missing, the equipment is.
+        return super().available and self._out() is not None and bool(self._modes)
+
     @callback
     def _handle_coordinator_update(self) -> None:
         # Fresh data won: drop the optimistic value so a change made elsewhere
         # (mobile app, controller front panel) shows again.
         self._optimistic_mode = None
+        self._resolve_modes()
         super()._handle_coordinator_update()
 
     @property
@@ -169,7 +185,15 @@ class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):
                     "access": str(klereo_access(self.coordinator.data)),
                 },
             )
-        mode = self._modes[option]
+        mode = self._modes.get(option)
+        if mode is None:
+            # The list moved under the call: the kind is no longer established,
+            # or the option went with the old one.
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="out_read_only",
+                translation_placeholders={"name": self._shown_name},
+            )
         state = self._state_for(mode)
         LOGGER.debug("Setting mode of #%s out%s to %s (%s), state=%s",
                      self._poolid, self._index, mode, option, state)

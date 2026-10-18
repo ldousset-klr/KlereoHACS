@@ -583,8 +583,9 @@ OUT_ICONS = {
 #          SetParam accepts only the parameters on an allowed list that is not
 #          published, so that one is left to the server to answer.
 #
-# An absent access reads as unknown, never as refused: a payload that does not
-# carry it must not lock anyone out of their own pool.
+# GetPoolDetails always carries access (confirmed by the codeowner). An absent
+# or malformed one reads as unknown, never as refused: a broken payload must
+# not lock anyone out of their own pool.
 ACCESS_COMMAND_MIN = 10
 ACCESS_PARAM_ANY = 16
 

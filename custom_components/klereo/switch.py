@@ -107,6 +107,12 @@ class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEnti
         """Return this out in the freshest payload, or None if it vanished."""
         return klereo_item(self.coordinator.data, "outs", self._index)
 
+    @property
+    def available(self):
+        # Unavailable, not unknown, once the payload stops carrying it: the
+        # value is not missing, the equipment is.
+        return super().available and self._out() is not None
+
     @callback
     def _handle_coordinator_update(self) -> None:
         # Fresh data won: drop the optimistic value so external changes
