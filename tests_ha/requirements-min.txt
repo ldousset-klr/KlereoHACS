@@ -8,4 +8,4 @@ josepy<2
 # thread the harness's cleanup check reports as lingering after any test that
 # opens an HTTP client — the diagnostics download does. 4.4.0 is what that
 # Home Assistant shipped with.
-pycares==4.4.0
+pycares==5.2.0
