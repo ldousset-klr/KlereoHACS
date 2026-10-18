@@ -149,7 +149,7 @@ landing later.
 
 **Equipment added after setup appears on its own**: a probe or an output the controller
 starts reporting, or a heating whose kind it starts naming, gets its entities at the next
-poll — no reload needed. One the controller stops reporting keeps its entity, reading *unknown*,
+poll — no reload needed. One the controller stops reporting keeps its entity, shown as *unavailable*,
 with its history, should it come back; delete it from the device page if it is gone for
 good.
 

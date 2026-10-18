@@ -10,7 +10,7 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.klereo.const import DOMAIN
+from custom_components.klereo.const import DOMAIN, HEATER_NONE, HEATER_PAC_KLINK
 from custom_components.klereo.klereo_api import KlereoAuthError, KlereoError
 
 from pool import DATA, PASSWORD, PASSWORD_HASH, POOLID
@@ -277,3 +277,41 @@ async def test_entities_follow_a_reload(hass, api, loaded):
     ids = [e.unique_id for e in _entities(hass, loaded)]
     assert len(ids) == len(set(ids))
     assert "id_klereo115out5" in ids
+
+
+async def test_gone_equipment_is_unavailable(hass, api, loaded):
+    """An item the payload stops carrying reads unavailable, and comes back."""
+    spots = api.pool["outs"].pop(0)
+    probe = api.pool["probes"].pop(0)
+    del api.pool["register"]
+    await _coordinator(hass, loaded).async_refresh()
+    await hass.async_block_till_done()
+    for entity_id in ("switch.test_pool_spots", "select.test_pool_spots_mode",
+                      "sensor.test_pool_eau_bassin", "sensor.test_pool_pin"):
+        assert hass.states.get(entity_id).state == "unavailable", entity_id
+    # Something still reported stays available.
+    assert hass.states.get("number.test_pool_water_setpoint").state == "27.5"
+    api.pool["outs"].insert(0, spots)
+    api.pool["probes"].insert(0, probe)
+    api.pool["register"] = {"pin": 1234}
+    await _coordinator(hass, loaded).async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get("switch.test_pool_spots").state == "off"
+    assert hass.states.get("sensor.test_pool_eau_bassin").state == "26.5"
+    assert hass.states.get("sensor.test_pool_pin").state == "1234"
+
+
+async def test_mode_options_follow_the_payload(hass, api, loaded):
+    """A heater swapped for a heat pump shows its modes at the next poll."""
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("select", DOMAIN, "id_klereo115out4mode")
+    assert hass.states.get(entity_id).attributes["options"] == ["Manuel", "Régulé"]
+    api.pool["params"]["HeaterMode"] = HEATER_PAC_KLINK
+    await _coordinator(hass, loaded).async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).attributes["options"] == [
+        "Manuel", "Auto", "Refroidit", "Réchauffe"]
+    api.pool["params"]["HeaterMode"] = HEATER_NONE
+    await _coordinator(hass, loaded).async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "unavailable"

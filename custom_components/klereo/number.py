@@ -105,11 +105,23 @@ class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity)
     @callback
     def _handle_coordinator_update(self) -> None:
         self._optimistic_speed = None
+        # The range follows the pool's PumpMaxSpeed, as the filtration's
+        # Manuel does, rather than the one it had at setup.
+        self._attr_native_max_value = klereo_pump_max_speed(self.coordinator.data)
         super()._handle_coordinator_update()
 
     @property
     def unique_id(self):
         return f"id_{self._key}"
+
+    @property
+    def available(self):
+        # Unavailable once the filtration is gone, or the pump no longer has
+        # speeds to set.
+        pool_data = self.coordinator.data
+        return (super().available
+                and klereo_item(pool_data, "outs", FILTRATION_OUT_INDEX) is not None
+                and klereo_pump_max_speed(pool_data) >= 2)
 
     @property
     def native_value(self):
@@ -214,6 +226,14 @@ class KlereoWaterSetpoint(KlereoCommandMixin, CoordinatorEntity, NumberEntity):
     @property
     def unique_id(self):
         return f"id_{self._key}"
+
+    @property
+    def available(self):
+        # Unavailable once the payload stops carrying a numeric ConsigneEau,
+        # the same test that decides whether the entity is created.
+        setpoint = (self.coordinator.data.get("params") or {}).get(SETPOINT_PARAM)
+        return (super().available and isinstance(setpoint, (int, float))
+                and not isinstance(setpoint, bool))
 
     @property
     def native_value(self):

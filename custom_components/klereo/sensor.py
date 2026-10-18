@@ -271,6 +271,12 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
         return klereo_item(self.coordinator.data, "probes", self._index)
 
     @property
+    def available(self):
+        # Unavailable, not unknown, once the payload stops carrying it: the
+        # value is not missing, the equipment is.
+        return super().available and self._probe() is not None
+
+    @property
     def name(self):
         return self._name
 
@@ -347,6 +353,10 @@ class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
     @property
     def unique_id(self):
         return f"id_{self._key}"
+
+    @property
+    def available(self):
+        return super().available and self._getter(self.coordinator.data) is not None
 
     @property
     def native_value(self):

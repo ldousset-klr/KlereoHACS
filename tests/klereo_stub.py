@@ -112,6 +112,10 @@ exc.ServiceValidationError = ServiceValidationError
 upd = _mod('homeassistant.helpers.update_coordinator')
 class CoordinatorEntity:
     def __init__(self, coordinator): self.coordinator = coordinator
+    @property
+    def available(self):
+        # Home Assistant's: the last refresh succeeded.
+        return getattr(self.coordinator, 'last_update_success', True)
     def _handle_coordinator_update(self): pass
     async def async_will_remove_from_hass(self): pass
 upd.CoordinatorEntity = CoordinatorEntity

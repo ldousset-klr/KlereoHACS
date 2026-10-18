@@ -83,8 +83,8 @@ def klereo_add_entities(entry, async_add_entities, build):
     whatever the builder logs about what it is *not* creating — said once,
     rather than every poll.
 
-    An entity whose item leaves the payload is kept: it reads unknown, and its
-    history stays, should the item come back.
+    An entity whose item leaves the payload is kept: it reads unavailable, and
+    its history stays, should the item come back.
     """
     coordinator = entry.runtime_data
     known = set()

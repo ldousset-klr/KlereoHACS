@@ -280,9 +280,12 @@ credential disclosure, not just a connection failure.
   starts with and leaves existing ones alone.
 - `select.py` — one entity per writable out, its drive mode. Offered exactly where
   `klereo_out_mode_states()` answers — so every out has one, save a heating or
-  disinfectant whose kind the payload does not name. The options are resolved **once, in `__init__`**: `HeaterMode`, `TraitMode` and
-  `PumpMaxSpeed` describe how the pool is equipped, which is a reinstallation rather than
-  something that changes under a poll. The write sends
+  disinfectant whose kind the payload does not name. The options are resolved by `_resolve_modes()` **at setup and after every poll**:
+  `HeaterMode`, `TraitMode` and `PumpMaxSpeed` decide them, and a heater swapped for a
+  heat pump shows its new modes without a reload. A kind no longer established leaves no
+  options and the entity unavailable; an option gone from the list under a service call
+  is refused with `out_read_only`. The filtration speed's `native_max_value` follows
+  `PumpMaxSpeed` the same way. The write sends
   `OUT_STATE_KEEP` as `newState` **wherever the target mode accepts it**, so changing the
   mode normally leaves the output doing what it was doing; the pH corrector's Manuel is the
   exception, taking only "off", so selecting it stops the dosing. `current_option` returns `None` rather than a name when the out
@@ -299,7 +302,9 @@ credential disclosure, not just a connection failure.
   when it is made, not every five minutes. For the same reason **what a builder says about
   an entity it does *not* create is guarded by `first`**, said at setup and not at every
   poll. The coordinator listener is removed with the entry. An item that leaves the
-  payload keeps its entity, which reads *unknown*; nothing is removed from the registry,
+  payload keeps its entity, which reads **unavailable** — every class's `available`
+  adds "still in the payload" to the coordinator's own test, the equipment being gone
+  rather than its value unknown; nothing is removed from the registry,
   so its history survives a pod that drops an out for one poll.
 - `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses built from the
   payload as above. Entities are keyed by the Klereo `index` field and
