@@ -89,9 +89,12 @@ table to the run summary. The workflow's token is read-only. Actions are **pinne
 commit SHA** with the version in a comment, which Dependabot (`.github/dependabot.yml`)
 moves together; hassfest and the HACS action stay on their branches, being wrappers
 around floating images (`ghcr.io/home-assistant/hassfest`, `ghcr.io/hacs/action:main`)
-that a SHA would not pin. Dependabot also bumps `requirements-lint.txt`, and leaves
-`tests_ha/` alone: `requirements-min.txt` pins the harness to the minimum Home Assistant
-on purpose. hassfest is strict about `manifest.json`: keys must read
+that a SHA would not pin. Dependabot also bumps `requirements-lint.txt`. Its pip
+`directory: /` reads `tests_ha/` too, so `requirements-min.txt`'s three pins —
+`pytest-homeassistant-custom-component` (the release installing the minimum Home
+Assistant), `josepy` and `pycares` — are **ignored by name** in `dependabot.yml`; their
+first bumps, PRs #16 to #18, would have dropped the minimum from CI or brought back the
+failures the pins fix. A new deliberate pin there needs its own `ignore` line. hassfest is strict about `manifest.json`: keys must read
 `domain`, `name`, then alphabetical; `requirements` must not list a package Home
 Assistant itself depends on — `requests` sat there until hassfest started rejecting it in
 October 2026, failing a weekly run with no commit of ours; and an integration defining `async_setup` must also

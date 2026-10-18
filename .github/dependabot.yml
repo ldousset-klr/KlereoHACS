@@ -9,10 +9,18 @@ updates:
     schedule:
       interval: weekly
   # requirements-lint.txt's ruff pin; requirements-test.txt pins nothing.
-  # tests_ha/ is deliberately left out: requirements-min.txt pins the harness
-  # to Home Assistant 2024.11.0, the minimum hacs.json declares, and bumping it
-  # would stop testing that minimum.
+  # `directory: /` also reads the requirements files below it, so
+  # tests_ha/requirements-min.txt's pins are ignored by name. They are
+  # deliberate: the harness release that installs Home Assistant 2024.11.0,
+  # the minimum hacs.json declares, and the josepy and pycares versions that
+  # Home Assistant works with — their first bumps (PRs #16 to #18) would have
+  # stopped testing the minimum, or brought back the failures the pins fixed.
+  # tests_ha/requirements.txt pins none of them, so nothing is lost there.
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: pytest-homeassistant-custom-component
+      - dependency-name: josepy
+      - dependency-name: pycares
