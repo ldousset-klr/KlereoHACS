@@ -533,9 +533,9 @@ professional account writes fine.
 `entity.klereo_may_command()` turns it into a yes or no, which the setpoint checks before
 writing: below 10 it raises `account_read_only`, naming the level, rather than making a
 round trip that comes back in French with no hint that the account is the reason. **An
-absent `access` means unknown, never refused** — `GetIndex` is documented as carrying it
-but `GetPoolDetails` has not been confirmed against a capture, and a payload without the
-field must not lock anyone out of their own pool. A non-integer reads the same way. The 16
+absent `access` means unknown, never refused** — the codeowner confirmed `GetPoolDetails`
+**always** carries it, as `GetIndex` does, so an absent or non-integer one is a malformed
+payload, and a malformed payload must not lock anyone out of their own pool. The 16
 threshold is deliberately *not* enforced locally: without the allowed list, only the
 server can say, so that refusal still travels.
 

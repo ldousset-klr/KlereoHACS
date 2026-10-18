@@ -66,7 +66,7 @@ release, still install the component in a running Home Assistant and read the lo
 
 | Suite | Covers |
 | --- | --- |
-| `test_access.py` | `access` thresholds from `SetOut.php`/`SetParam.php`: an absent level means unknown, never refused; the setpoint, switch, mode select and filtration speed all refuse locally below 10 with no round trip |
+| `test_access.py` | `access` thresholds from `SetOut.php`/`SetParam.php`: an absent or malformed level — `GetPoolDetails` always carries it — means unknown, never refused; the setpoint, switch, mode select and filtration speed all refuse locally below 10 with no round trip |
 | `test_available.py` | every entity class unavailable once its item leaves the payload (and on a failed poll), available again when it returns; the speed unavailable below two pump speeds, its range following `PumpMaxSpeed`; the mode select's options following `HeaterMode` at each poll, none and unavailable once the kind is unknown, a stale option refused with nothing sent |
 | `test_counters.py` | the four `_TotalTime` runtime sensors, each reading its own `params` key; a missing or misspelled key creates no entity |
 | `test_dosed.py` | the four dosed volumes: running seconds x the pump's flow in tenths of a litre per hour, the counter coming from `params`, `outs[].totalTime` or `ExtraParams` depending on the out; the disinfectant's gate on `TraitMode`, which keeps bromine and electrolysis in hours; no entity without both figures, or on a flow of zero |

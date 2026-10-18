@@ -234,7 +234,8 @@ documented; treat a 401 or 403 as "renew and retry once".
 success from failure.
 
 `GetIndex.php` returns one entry per system with `idSystem`, `poolNickname`, `suspended`,
-`access` and a summary. `GetPoolDetails.php` returns one entry, the whole system.
+`access` and a summary. `GetPoolDetails.php` returns one entry, the whole system, `access`
+included — the account's level on that pool, which decides what it may command.
 
 ### `probes[]`
 

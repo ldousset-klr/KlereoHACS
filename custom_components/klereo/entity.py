@@ -229,10 +229,10 @@ def klereo_out_mode_name(pool_data, index, mode):
 def klereo_access(pool_data):
     """The account's access level on this pool, or None if the payload omits it.
 
-    GetIndex is documented as carrying it; whether GetPoolDetails does has not
-    been confirmed against a capture. None is therefore a real answer and means
-    *unknown*, never *refused*: a payload without the field must not lock
-    anyone out of a pool they own.
+    GetPoolDetails always carries it, as GetIndex does — the codeowner
+    confirmed it. None therefore only comes from a malformed payload, and means
+    *unknown*, never *refused*: a broken payload must not lock anyone out of a
+    pool they own.
     """
     access = pool_data.get("access")
     return access if isinstance(access, int) and not isinstance(access, bool) else None
