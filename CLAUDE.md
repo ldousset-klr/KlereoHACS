@@ -134,7 +134,10 @@ credential disclosure, not just a connection failure.
   Every
   authenticated call goes through `_post()`, which lazily calls `get_jwt()` (the SHA-1 of
   the password POSTed to `GetJWT.php` — the API is **built from that hash**, the entry's
-  `password_hash`, and never sees the password; `hash_password()` makes it), sends `Authorization: Bearer <jwt>`, and on a 401/403
+  `password_hash`, and never sees the password; `hash_password()` makes it — with
+  `version` set to `HA_VERSION`, the integration's own version from `manifest.json`,
+  digits only, then `-HA`: `170-HA` for 1.7.0, so the server can tell releases apart;
+  `const.py` reads the manifest at import, so a release bump is the only edit), sends `Authorization: Bearer <jwt>`, and on a 401/403
   clears the token and replays the request **once** before `raise_for_status()`. Every
   request carries `timeout=HTTP_TIMEOUT` (30 s) so a hung server cannot pin an executor
   thread, and all of them share one `requests.Session` so the five endpoints stop paying

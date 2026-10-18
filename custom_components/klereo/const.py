@@ -1,5 +1,7 @@
+import json
 import math
 from collections import namedtuple
+from pathlib import Path
 
 DOMAIN = "klereo"
 CONF_USERNAME = "username"
@@ -44,7 +46,23 @@ def scan_interval(options):
         return UPDATE_INTERVAL
     return round(min(max(value, SCAN_INTERVAL_MIN), SCAN_INTERVAL_MAX))
 
-HA_VERSION = "100-HA"
+# The integration's own version, from manifest.json — the one place it is
+# written, which HACS reads and the release check holds to the tag. Read once,
+# at import, which Home Assistant runs outside the event loop.
+INTEGRATION_VERSION = json.loads(
+    (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
+)["version"]
+
+
+def client_version(version):
+    """GetJWT.php's `version` field: the integration's version, digits only, then -HA.
+
+    1.7.0 sends 170-HA, so the server can tell which release logs in.
+    """
+    return "".join(ch for ch in version if ch.isdigit()) + "-HA"
+
+
+HA_VERSION = client_version(INTEGRATION_VERSION)
 HTTP_TIMEOUT = 30
 
 # How long to keep asking CommandStatus whether a queued command has landed,

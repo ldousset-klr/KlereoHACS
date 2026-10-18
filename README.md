@@ -199,7 +199,7 @@ parameters, and every response is JSON.
 |---|---|
 | `login` | account name |
 | `password` | **SHA-1 of the password, lowercase hex** — never the password itself |
-| `version` | client version string, e.g. `100-HA` |
+| `version` | client version: the integration's, digits only, then `-HA` — `170-HA` for 1.7.0 |
 | `app` | `api` |
 
 ```bash
