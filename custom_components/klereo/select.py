@@ -1,3 +1,5 @@
+from functools import partial
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
@@ -6,7 +8,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (CONF_SERVER, DOMAIN, ICON_OUT_MODE, OUT_LABELS,
                     OUTS_DISABLED_BY_DEFAULT)
 from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
-                     klereo_device_info, klereo_io_names, klereo_item,
+                     klereo_add_entities, klereo_device_info, klereo_io_names, klereo_item,
                      klereo_items, klereo_out_mode_name,
                      klereo_out_mode_states, klereo_out_refusal)
 
@@ -16,25 +18,26 @@ LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Expose each writable out's drive mode as a select."""
-    coordinator = config_entry.runtime_data
-    api = coordinator.api
-    pool_data = coordinator.data
-    poolid = pool_data['idSystem']
-    device_info = klereo_device_info(pool_data, poolid,
-                                     config_entry.data.get(CONF_SERVER))
-    names = klereo_io_names(pool_data, IO_TYPE_OUT)
+    server = config_entry.data.get(CONF_SERVER)
 
-    selects = []
-    for out in klereo_items(pool_data, "outs"):
-        index = out['index']
-        # A mode is offered exactly where the out's permitted states are known:
-        # that is both what makes it writable and what says which modes to list.
-        if klereo_out_mode_states(pool_data, index) is None:
-            continue
-        LOGGER.debug("Adding mode select for #%s out%s", poolid, index)
-        selects.append(KlereoOutMode(api, coordinator, out, poolid,
-                                     device_info, names.get(index)))
-    async_add_entities(selects)
+    def build(coordinator, first):
+        pool_data = coordinator.data
+        poolid = pool_data['idSystem']
+        device_info = klereo_device_info(pool_data, poolid, server)
+        names = klereo_io_names(pool_data, IO_TYPE_OUT)
+        for out in klereo_items(pool_data, "outs"):
+            index = out['index']
+            # A mode is offered exactly where the out's permitted states are
+            # known: that is both what makes it writable and what says which
+            # modes to list. A heating whose HeaterMode is set after setup gets
+            # its select at the next poll.
+            if klereo_out_mode_states(pool_data, index) is None:
+                continue
+            yield (index,
+                   partial(KlereoOutMode, coordinator.api, coordinator, out, poolid,
+                           device_info, names.get(index)))
+
+    klereo_add_entities(config_entry, async_add_entities, build)
 
 
 class KlereoOutMode(KlereoCommandMixin, CoordinatorEntity, SelectEntity):

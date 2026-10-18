@@ -1,4 +1,5 @@
 from collections import namedtuple
+from functools import partial
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
@@ -11,8 +12,8 @@ from .const import (CHLORINE_FLOW_PARAM, CONF_SERVER, FLOCCULANT_OUT_INDEX,
                     PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
                     PROBE_TYPE_DEFAULT, PUMP_DOSED_TREATMENTS,
                     SECONDS_PER_HOUR)
-from .entity import (IO_TYPE_PROBE, klereo_device_info, klereo_io_names,
-                     klereo_item, klereo_items)
+from .entity import (IO_TYPE_PROBE, klereo_add_entities, klereo_device_info,
+                     klereo_io_names, klereo_item, klereo_items)
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -208,26 +209,28 @@ INFO_SENSORS = (
 )
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
+    server = config_entry.data.get(CONF_SERVER)
 
-    coordinator = config_entry.runtime_data
-    pool_data = coordinator.data
-    poolid = pool_data['idSystem']
-    device_info = klereo_device_info(pool_data, poolid,
-                                     config_entry.data.get(CONF_SERVER))
-    names = klereo_io_names(pool_data, IO_TYPE_PROBE)
-    sensors = []
-    for probe in klereo_items(pool_data, "probes"):
-        LOGGER.debug("Adding sensor for #%s: %s", poolid, probe)
-        sensors.append(KlereoSensor(coordinator, probe, poolid, device_info,
-                                    names.get(probe['index'])))
-    # Identity values, only when the payload carries them
-    for info in INFO_SENSORS:
-        if info.getter(pool_data) is None:
-            LOGGER.debug("No %s on pool #%s, no diagnostic sensor",
-                         info.key, poolid)
-            continue
-        sensors.append(KlereoInfoSensor(coordinator, poolid, device_info, info))
-    async_add_entities(sensors)
+    def build(coordinator, first):
+        pool_data = coordinator.data
+        poolid = pool_data['idSystem']
+        device_info = klereo_device_info(pool_data, poolid, server)
+        names = klereo_io_names(pool_data, IO_TYPE_PROBE)
+        for probe in klereo_items(pool_data, "probes"):
+            yield (("probe", probe['index']),
+                   partial(KlereoSensor, coordinator, probe, poolid, device_info,
+                           names.get(probe['index'])))
+        # Identity values, only when the payload carries them
+        for info in INFO_SENSORS:
+            if info.getter(pool_data) is None:
+                if first:
+                    LOGGER.debug("No %s on pool #%s, no diagnostic sensor",
+                                 info.key, poolid)
+                continue
+            yield (info.key,
+                   partial(KlereoInfoSensor, coordinator, poolid, device_info, info))
+
+    klereo_add_entities(config_entry, async_add_entities, build)
 
 
 class KlereoSensor(CoordinatorEntity, SensorEntity):

@@ -70,6 +70,7 @@ release, still install the component in a running Home Assistant and read the lo
 | `test_counters.py` | the four `_TotalTime` runtime sensors, each reading its own `params` key; a missing or misspelled key creates no entity |
 | `test_dosed.py` | the four dosed volumes: running seconds x the pump's flow in tenths of a litre per hour, the counter coming from `params`, `outs[].totalTime` or `ExtraParams` depending on the out; the disinfectant's gate on `TraitMode`, which keeps bromine and electrolysis in hours; no entity without both figures, or on a flow of zero |
 | `test_device.py` | `DeviceInfo` from `tabSW` / `tabHW` / `podSerial`; an absent field stays absent rather than the string `"None"` |
+| `test_dynamic.py` | entities the payload calls for after setup: a new probe, out, identity value, setpoint or speed is added at the next poll, once; the heating's select once `HeaterMode` names its kind; an item leaving and coming back is not recreated; the coordinator listener removed on unload; what is not created logged at setup only, and an unusable `PumpMaxSpeed` warned about once |
 | `test_enabled.py` | `OUTS_DISABLED_BY_DEFAULT` on the switch and the mode select; the filtration speed and the sensors are untouched; disabled still means controllable |
 | `test_filt.py` | the filtration's speed encoding — `2` is speed 2 in Manuel and the keep sentinel elsewhere; Manuel's range follows `PumpMaxSpeed`; the speed entity writes in Manuel only |
 | `test_floc.py` | the flocculant's two modes, its Manuel that stops the pump, and its "Volume fixe" wording |
@@ -88,4 +89,4 @@ release, still install the component in a running Home Assistant and read the lo
 | `test_tasklife.py` | the confirmation task's life: owned by the config entry, cancelled on unload and on entity removal, and a second write abandoning the first |
 | `test_trait.py` | `params.TraitMode` and the disinfectant's five families — mode 2 carries four labels and two state sets across them |
 | `test_volume.py` | the water-volume sensor: disabled by default, read-only, absent when the payload has no `VolumeEau` |
-| `test_wait.py` | `CommandStatus` polling: the `CommandSender.h` enum, `command_id()`, success keeping the optimistic value until the refresh, failure and timeout dropping it, and the cadence never exceeding `COMMAND_POLL_DELAYS` |
+| `test_wait.py` | `CommandStatus` polling: the `CommandSender.h` enum, `command_id()`, success keeping the optimistic value until the refresh, failure and timeout dropping it, and the cadence never exceeding `COMMAND_POLL_DELAYS`; a failure — and only a failure, never a pending, unknown or unreadable command — firing `klereo_command_failed` with its data |

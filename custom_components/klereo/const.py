@@ -59,6 +59,12 @@ HTTP_TIMEOUT = 30
 # duration, where sleeping between short requests frees it.
 COMMAND_POLL_DELAYS = (1, 2, 3, 5, 5, 5, 5)
 
+# Fired on the event bus when the pod reports a command failed, so an
+# automation can react to what otherwise only reaches the log: the service call
+# returned long before the verdict. Pending, unknown and unreadable outcomes do
+# not fire it — nothing says the command failed, only that we stopped asking.
+EVENT_COMMAND_FAILED = f"{DOMAIN}_command_failed"
+
 # Commands.status, from the pod server's CommandSender.h.
 #
 # WaitCommand loops while status < 9, so **9 and above are terminal — but only

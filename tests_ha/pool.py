@@ -78,6 +78,7 @@ class FakeKlereoAPI:
     error = None          # raised by every read when set
     list_error = None     # raised by list_pools alone when set
     write_error = None    # raised by set_out and set_param when set
+    command_result = const.COMMAND_DONE   # what command_status reports
     made = []
     calls = []
 
@@ -124,6 +125,7 @@ class FakeKlereoAPI:
 
     def command_status(self, cmd_id):
         FakeKlereoAPI.calls.append(("command_status", cmd_id))
-        return {"cmdID": cmd_id, "status": const.COMMAND_DONE}
+        return {"cmdID": cmd_id, "status": FakeKlereoAPI.command_result,
+                "detail": None}
 
     command_id = staticmethod(KlereoAPI.command_id)
