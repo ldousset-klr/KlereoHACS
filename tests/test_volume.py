@@ -1,9 +1,9 @@
 """Vérifie le volume d’eau."""
-from klereo_stub import Api, Coordinator, Hass, run, entry_for
+from klereo_stub import Coordinator, Hass, run, entry_for
 
 
 def test_volume(check):
-    from klereo.sensor import INFO_SENSORS, KlereoInfoSensor, async_setup_entry as sensor_setup
+    from klereo.sensor import KlereoInfoSensor, async_setup_entry as sensor_setup
     def pool(**over):
         d = {'idSystem':115,'poolNickname':'T','outs':[],'probes':[],'IORename':[],
              'params':{'VolumeEau':45},'register':{'pin':'1234'},'device':0}

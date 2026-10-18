@@ -1,5 +1,4 @@
 """Vérifie les infos de l’appareil."""
-from klereo_stub import run
 
 
 def test_device(check):

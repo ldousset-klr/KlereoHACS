@@ -1,5 +1,5 @@
 """Vérifie le suivi des commandes via CommandStatus."""
-from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run
+from klereo_stub import Api, Coordinator, Hass, run
 
 
 def test_wait(check):
@@ -60,7 +60,7 @@ def test_wait(check):
     check("CommandStatus appelé en fond", api2.calls[1], ('command_status', 77))
     check("optimiste conservé (appliquée)", sw._optimistic_state, True)
     print("== un échec lâche l'optimiste et journalise la raison ==")
-    for st, mot in ((13,'access'), (17,'not connected'), (19,'firmware'), (10,'error')):
+    for st, _mot in ((13,'access'), (17,'not connected'), (19,'firmware'), (10,'error')):
         c = Coordinator(pool()); a = Api(); a.wait_status = st; a.wait_detail = 'd'
         h = Hass(); h.keep_tasks = True
         sw = KlereoOut(a, c, c.data['outs'][0], 115, {}, None); sw.hass = h

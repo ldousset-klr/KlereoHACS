@@ -7,7 +7,7 @@ def test_trait(check):
     from klereo.switch import KlereoOut
     from klereo.entity import klereo_out_mode_name, klereo_out_mode_states
     from klereo.const import (OUT_STATE_KEEP, OUT_STATUS_OFF, OUT_STATUS_ON, OUT_MODES,
-                              TRAIT_VARIANTS, PAYLOAD_VARIANTS, HEATER_PAC_KLINK,
+                              TRAIT_VARIANTS, HEATER_PAC_KLINK,
                               TRAIT_NONE, TRAIT_CHLORE, TRAIT_ELECTRO_X, TRAIT_ELECTRO_COR,
                               TRAIT_OXYGEN, TRAIT_BROME, TRAIT_ELECTRO_BSV, TRAIT_IGNORE,
                               TRAIT_ELECTRO_KLR)
@@ -20,7 +20,7 @@ def test_trait(check):
     def out(i, mode, status=0):
         return {'index':i,'type':0,'mode':mode,'status':status,'realStatus':status,'updateTime':0}
     print("== chaque mode permis porte un nom (sinon il disparaîtrait des options) ==")
-    for t, (states, names) in sorted(TRAIT_VARIANTS.items()):
+    for t, (states, _names) in sorted(TRAIT_VARIANTS.items()):
         P = pool([], trait=t)
         unnamed = [m for m in states if klereo_out_mode_name(P, 3, m) is None]
         check(f"TraitMode {t}", unnamed, [])

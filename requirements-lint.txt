@@ -1,0 +1,3 @@
+# ruff, pinned so a new rule in a ruff release cannot turn CI red on its own;
+# Dependabot proposes the bumps. Configured in ruff.toml.
+ruff==0.17.1

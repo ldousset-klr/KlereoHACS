@@ -5,7 +5,7 @@ from klereo_stub import Api, Coordinator, Hass, run, entry_for
 def test_enabled(check):
     from klereo.switch import KlereoOut, async_setup_entry as switch_setup
     from klereo.select import async_setup_entry as select_setup
-    from klereo.number import KlereoFiltrationSpeed, async_setup_entry as number_setup
+    from klereo.number import async_setup_entry as number_setup
     from klereo.sensor import async_setup_entry as sensor_setup
     from klereo.const import OUTS_DISABLED_BY_DEFAULT, OUT_LABELS, TRAIT_CHLORE, HEATER_PAC_KLINK
     ENABLED  = [0, 1, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14]

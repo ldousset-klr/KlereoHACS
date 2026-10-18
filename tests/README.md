@@ -5,7 +5,7 @@ pip install -r requirements-test.txt
 python -m pytest
 ```
 
-from the repository root. That file is **pytest, `requests` and `voluptuous`** — no Home
+from the repository root. That file is **pytest, `requests` and `voluptuous`**, plus `pytest-cov` for CI — no Home
 Assistant, no network, no pool. The suite against a real Home Assistant lives apart, in
 [`tests_ha/`](../tests_ha/).
 
@@ -43,6 +43,10 @@ session, which a fake exception hierarchy would not exercise. `voluptuous` is re
 `test_options.py` fills the flows' forms in, which checks their defaults and required
 fields rather than only that a schema exists.
 
+In CI the suite runs under coverage, `python -m pytest --cov`, with `pytest-cov` from the
+same requirements file and the floor in `.coveragerc` at the root; a plain run does not
+need it.
+
 Assertions go through the `check` fixture, not bare `assert`: it records every failure
 and reports them together at the end, so one run tells you everything that broke rather
 than only the first thing. A suite is one function taking `check` and ending on
@@ -75,6 +79,7 @@ release, still install the component in a running Home Assistant and read the lo
 | `test_modes.py` | the mode select in general: options offered, a reserved mode reported as `None`, `newState` = keep on a write, and the switch's refusals |
 | `test_options.py` | the poll interval — default, clamping, junk in storage; the options form's bounds and the whole seconds it stores; reconfigure validating the new server on the same poolID, requiring the password again, and leaving the entry alone on a refusal; the update listener reloading on an interval change only; setup putting the coordinator, carrying the API built from the hash, in `runtime_data` and nothing in `hass.data`; the version 1 → 2 migration replacing the password by its hash, and refusing a version 3; the flows storing the hash, never the password; every new step and abort translated in both languages |
 | `test_ph.py` | the pH corrector's modes, the `newState` each one sends, and the error text naming the entity as the user sees it |
+| `test_release.py` | `.github/scripts/check_release.py`: a tag with a "v", a manifest not bumped and a changelog link naming something that is not a tag — 1.5.1's original `compare/v1.5.0...v1.5.1` among them — are errors; a title without "v" and a link not starting at the previous release only warn |
 | `test_resume.py` | the filtration's last-known speed: learned from polls, sent back on `turn_on`, restored after a restart, ignored when out of range |
 | `test_robust.py` | 1.5.1: a write Klereo or the network refuses becomes a `HomeAssistantError` with `command_failed` and the server's reason, leaving no optimistic value and no confirmation; absent or null `probes`/`outs` and missing fields set up and read as `None`; the device's link following the entry's server |
 | `test_runtime.py` | `_params_hours()` — seconds to hours, `duration` / `total_increasing`, and no entity on an absurd value |

@@ -40,8 +40,8 @@ def test_access(check):
         try: run(sp.async_set_native_value(26.0)); got='ENVOYÉ'
         except ServiceValidationError as e: got = (e.key, e.placeholders['access'])
         check(f"access={a}", got, ('account_read_only', str(a)))
-        check(f"  aucun appel réseau", api.calls, [])
-        check(f"  mais la lecture marche", sp.native_value, 28.0)
+        check("  aucun appel réseau", api.calls, [])
+        check("  mais la lecture marche", sp.native_value, 28.0)
     print("== au-dessus, et quand c'est inconnu, ça part ==")
     for a in (10, 16, 'absent'):
         c = Coordinator(pool(a)); api = Api()

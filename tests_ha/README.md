@@ -39,6 +39,9 @@ later: `josepy<2` for its `acme`, and `pycares==4.4.0` for its `aiodns` — pyca
 a shutdown thread the harness's cleanup check reports as lingering after any test that
 opens an HTTP client.
 
+CI adds `--cov`: `pytest-cov` comes with the harness, and `.coveragerc` at the root sets
+the source and the floor.
+
 These are ordinary pytest tests with plain `assert`, one scenario each — the `check`
 fixture of `tests/` is for tables, which this suite does not hold.
 

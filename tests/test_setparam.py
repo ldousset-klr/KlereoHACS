@@ -40,6 +40,7 @@ def test_setparam(check):
         try: api.set_param('ConsigneEau', bad); got='ENVOYÉ'
         except KlereoError: got='refusé'
         check(f"  {why}", got, 'refusé')
+        check(f"  {why} : rien envoyé", sent, before)
     print("== l'entité écrit, et garde sa valeur jusqu'au poll suivant ==")
     c = Coordinator(pool()); a = Api()
     sp = KlereoWaterSetpoint(a, c, 115, {}); sp.hass = Hass()

@@ -1,9 +1,9 @@
 """Vérifie les quatre compteurs de marche."""
-from klereo_stub import Api, Coordinator, Hass, run, entry_for
+from klereo_stub import Coordinator, Hass, run, entry_for
 
 
 def test_counters(check):
-    from klereo.sensor import INFO_SENSORS, KlereoInfoSensor, async_setup_entry as sensor_setup
+    from klereo.sensor import KlereoInfoSensor, async_setup_entry as sensor_setup
     COUNTERS = {
         'filtrationtime':   ('Filtration runtime',    'Filtration_TotalTime'),
         'phtime':           ('pH corrector runtime',  'PHMinus_TotalTime'),
@@ -22,7 +22,7 @@ def test_counters(check):
     print("== les quatre compteurs ==")
     c, info = build(dict(ALL))
     check("présents", sorted(k for k in info if k.endswith('time')), sorted(COUNTERS))
-    for i, (key, (label, pkey)) in enumerate(COUNTERS.items()):
+    for i, (key, (label, _pkey)) in enumerate(COUNTERS.items()):
         e = info[key]
         check(f"{key}: nom",         e._name, label)
         check(f"{key}: heures",      e.native_value, float(i+1))
