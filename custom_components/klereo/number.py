@@ -1,3 +1,5 @@
+from functools import partial
+
 from homeassistant.components.number import NumberEntity
 from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
@@ -7,7 +9,7 @@ from .const import (CONF_SERVER, DOMAIN, FILTRATION_OUT_INDEX, ICON_FILTRATION_S
                     MAX_PUMP_SPEED, OUT_LABELS, SETPOINT_MAX, SETPOINT_MIN,
                     SETPOINT_PARAM, SETPOINT_STEP)
 from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
-                     klereo_device_info, klereo_io_names, klereo_item,
+                     klereo_add_entities, klereo_device_info, klereo_io_names, klereo_item,
                      klereo_may_command, klereo_out_mode_name,
                      klereo_out_mode_states, klereo_out_refusal,
                      klereo_pump_max_speed)
@@ -18,55 +20,59 @@ LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Expose the filtration speed and the water setpoint, where the pool has them."""
-    coordinator = config_entry.runtime_data
-    api = coordinator.api
-    pool_data = coordinator.data
-    poolid = pool_data['idSystem']
-    device_info = klereo_device_info(pool_data, poolid,
-                                     config_entry.data.get(CONF_SERVER))
+    server = config_entry.data.get(CONF_SERVER)
 
-    numbers = []
+    def build(coordinator, first):
+        pool_data = coordinator.data
+        poolid = pool_data['idSystem']
+        device_info = klereo_device_info(pool_data, poolid, server)
 
-    speed = _filtration_speed(api, coordinator, pool_data, poolid, device_info)
-    if speed is not None:
-        numbers.append(speed)
+        speed = _filtration_speed(coordinator, pool_data, poolid, device_info, first)
+        if speed is not None:
+            yield "speed", speed
 
-    # The water temperature setpoint, params.ConsigneEau. Absent on a pool with
-    # no heating, and on anything that is not a pool at all.
-    setpoint = (pool_data.get("params") or {}).get(SETPOINT_PARAM)
-    if isinstance(setpoint, (int, float)) and not isinstance(setpoint, bool):
-        LOGGER.debug("Adding water setpoint for #%s (currently %s)", poolid, setpoint)
-        numbers.append(KlereoWaterSetpoint(api, coordinator, poolid, device_info))
-    else:
-        LOGGER.debug("Pool #%s declares no ConsigneEau (%r), no setpoint entity",
-                     poolid, setpoint)
+        # The water temperature setpoint, params.ConsigneEau. Absent on a pool
+        # with no heating, and on anything that is not a pool at all.
+        setpoint = (pool_data.get("params") or {}).get(SETPOINT_PARAM)
+        if isinstance(setpoint, (int, float)) and not isinstance(setpoint, bool):
+            yield "setpoint", partial(KlereoWaterSetpoint, coordinator.api,
+                                      coordinator, poolid, device_info)
+        elif first:
+            LOGGER.debug("Pool #%s declares no ConsigneEau (%r), no setpoint entity",
+                         poolid, setpoint)
 
-    async_add_entities(numbers)
+    klereo_add_entities(config_entry, async_add_entities, build)
 
 
-def _filtration_speed(api, coordinator, pool_data, poolid, device_info):
-    """The speed entity, or None on a pool whose pump has at most one speed."""
+def _filtration_speed(coordinator, pool_data, poolid, device_info, first):
+    """What builds the speed entity, or None on a pump with at most one speed."""
     if klereo_item(pool_data, "outs", FILTRATION_OUT_INDEX) is None:
-        LOGGER.debug("Pool #%s has no out %s, no speed entity",
-                    poolid, FILTRATION_OUT_INDEX)
+        if first:
+            LOGGER.debug("Pool #%s has no out %s, no speed entity",
+                         poolid, FILTRATION_OUT_INDEX)
         return None
 
-    if not isinstance(pool_data.get('PumpMaxSpeed'), int):
-        # Only a missing or malformed value is a reason to guess; 0 is a real
-        # answer, meaning the pool drives no pump speed.
-        LOGGER.warning("Pool #%s declares no usable PumpMaxSpeed (%r), allowing %s",
-                       poolid, pool_data.get('PumpMaxSpeed'), MAX_PUMP_SPEED)
     max_speed = klereo_pump_max_speed(pool_data)
     if max_speed < 2:
         # 0 = no speed control, 1 = single speed: the switch says it all.
-        LOGGER.debug("Pool #%s drives no pump speed (PumpMaxSpeed=%s), no speed entity",
-                    poolid, max_speed)
+        if first:
+            LOGGER.debug("Pool #%s drives no pump speed (PumpMaxSpeed=%s), "
+                         "no speed entity", poolid, max_speed)
         return None
 
-    LOGGER.debug("Adding filtration speed 0-%s for #%s", max_speed, poolid)
-    klereo_name = klereo_io_names(pool_data, IO_TYPE_OUT).get(FILTRATION_OUT_INDEX)
-    return KlereoFiltrationSpeed(api, coordinator, poolid, device_info,
-                                 max_speed, klereo_name)
+    def make():
+        # Here rather than above, so it is said once, when the entity is made,
+        # and not at every poll that finds it already there.
+        if not isinstance(pool_data.get('PumpMaxSpeed'), int):
+            # Only a missing or malformed value is a reason to guess; 0 is a
+            # real answer, meaning the pool drives no pump speed.
+            LOGGER.warning("Pool #%s declares no usable PumpMaxSpeed (%r), "
+                           "allowing %s", poolid, pool_data.get('PumpMaxSpeed'),
+                           MAX_PUMP_SPEED)
+        klereo_name = klereo_io_names(pool_data, IO_TYPE_OUT).get(FILTRATION_OUT_INDEX)
+        return KlereoFiltrationSpeed(coordinator.api, coordinator, poolid,
+                                     device_info, max_speed, klereo_name)
+    return make
 
 
 class KlereoFiltrationSpeed(KlereoCommandMixin, CoordinatorEntity, NumberEntity):

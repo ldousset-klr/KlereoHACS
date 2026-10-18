@@ -1,3 +1,5 @@
+from functools import partial
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
@@ -16,7 +18,7 @@ from .const import (
     OUT_STATUS_UNKNOWN,
 )
 from .entity import (IO_TYPE_OUT, KlereoCommandMixin, klereo_access,
-                     klereo_device_info, klereo_io_names, klereo_item,
+                     klereo_add_entities, klereo_device_info, klereo_io_names, klereo_item,
                      klereo_items, klereo_out_mode_name,
                      klereo_out_mode_states, klereo_out_refusal)
 
@@ -25,19 +27,19 @@ LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     
-    coordinator = config_entry.runtime_data
-    api = coordinator.api
-    pool_data = coordinator.data
-    poolid = pool_data['idSystem']
-    device_info = klereo_device_info(pool_data, poolid,
-                                     config_entry.data.get(CONF_SERVER))
-    names = klereo_io_names(pool_data, IO_TYPE_OUT)
-    switches = []
-    for out in klereo_items(pool_data, "outs"):
-        LOGGER.debug("Adding out for #%s: %s", poolid, out)
-        switches.append(KlereoOut(api, coordinator, out, poolid, device_info,
-                                  names.get(out['index'])))
-    async_add_entities(switches)
+    server = config_entry.data.get(CONF_SERVER)
+
+    def build(coordinator, first):
+        pool_data = coordinator.data
+        poolid = pool_data['idSystem']
+        device_info = klereo_device_info(pool_data, poolid, server)
+        names = klereo_io_names(pool_data, IO_TYPE_OUT)
+        for out in klereo_items(pool_data, "outs"):
+            yield (out['index'],
+                   partial(KlereoOut, coordinator.api, coordinator, out, poolid,
+                           device_info, names.get(out['index'])))
+
+    klereo_add_entities(config_entry, async_add_entities, build)
 
 
 class KlereoOut(KlereoCommandMixin, CoordinatorEntity, RestoreEntity, SwitchEntity):

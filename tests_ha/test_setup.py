@@ -239,3 +239,41 @@ async def test_newer_entry_is_refused(hass, api):
     assert not await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is ConfigEntryState.MIGRATION_ERROR
     assert entry.data == DATA
+
+
+async def test_new_items_get_their_entities(hass, api, loaded):
+    """A probe, an out or a setting that appears after setup, at the next poll."""
+    before = {e.unique_id for e in _entities(hass, loaded)}
+    api.pool["probes"].append({"index": 19, "type": 10, "filteredValue": 12,
+                               "filteredTime": 60, "directValue": 12, "directTime": 30})
+    api.pool["outs"].append({"index": 5, "type": 0, "mode": 0, "status": 1,
+                             "realStatus": 1, "updateTime": 0})
+    # A flocculant, with the running time its dosed volume is computed from.
+    api.pool["outs"].append({"index": 8, "type": 0, "mode": 0, "status": 0,
+                             "realStatus": 0, "updateTime": 0, "totalTime": 600})
+    await _coordinator(hass, loaded).async_refresh()
+    await hass.async_block_till_done()
+    added = {e.unique_id for e in _entities(hass, loaded)} - before
+    assert added == {"id_klereo115probe19", "id_klereo115out5", "id_klereo115out5mode",
+                     "id_klereo115out8", "id_klereo115out8mode",
+                     "id_klereo115flocculantvolume"}
+    assert hass.states.get("switch.test_pool_auxiliaire_1").state == "on"
+    # Nothing is added twice, and the device is still the one device.
+    await _coordinator(hass, loaded).async_refresh()
+    await hass.async_block_till_done()
+    assert {e.unique_id for e in _entities(hass, loaded)} == before | added
+    assert len({e.device_id for e in _entities(hass, loaded)}) == 1
+
+
+async def test_entities_follow_a_reload(hass, api, loaded):
+    """The listener goes with the entry: a reload starts from a clean slate."""
+    api.pool["outs"].append({"index": 5, "type": 0, "mode": 0, "status": 0,
+                             "realStatus": 0, "updateTime": 0})
+    assert await hass.config_entries.async_reload(loaded.entry_id)
+    await hass.async_block_till_done()
+    coordinator = _coordinator(hass, loaded)
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    ids = [e.unique_id for e in _entities(hass, loaded)]
+    assert len(ids) == len(set(ids))
+    assert "id_klereo115out5" in ids

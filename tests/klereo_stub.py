@@ -75,6 +75,7 @@ _h.config_validation = cv
 
 class _Entity:
     hass = None
+    entity_id = None         # set by Home Assistant once the entity is added
     name = None              # Home Assistant's, translated; the suites read _name
     _attr_device_info = None
     _attr_icon = None
@@ -181,7 +182,8 @@ class FakeEntry:
     entry_id = 'e'
     data = {}
     runtime_data = None
-    def __init__(self): self.tasks = []
+    def __init__(self): self.tasks = []; self.on_unload = []
+    def async_on_unload(self, func): self.on_unload.append(func)
     def async_create_background_task(self, hass, coro, name, eager_start=True):
         t = hass.async_create_task(coro)
         self.tasks.append(t)
@@ -196,7 +198,15 @@ class Coordinator:
         self.data = data
         self.api = api if api is not None else Api()
         self.config_entry = FakeEntry()
+        self.listeners = []
     async def async_request_refresh(self): pass
+    def async_add_listener(self, listener):
+        self.listeners.append(listener)
+        return lambda: self.listeners.remove(listener)
+    def poll(self, data):
+        """A refresh that brings this payload: the listeners hear of it."""
+        self.data = data
+        for listener in list(self.listeners): listener()
 
 def entry_for(coordinator, data=None):
     """The entry a platform is set up from: the coordinator is its runtime_data."""
@@ -223,8 +233,13 @@ class _Handle:
         if self.coro is not None: self.coro.close(); self.coro = None
         self._done = True
 
+class Bus:
+    """hass.bus: keeps what was fired, as (event_type, data)."""
+    def __init__(self): self.events = []
+    def async_fire(self, event_type, data=None): self.events.append((event_type, data))
+
 class Hass:
-    def __init__(self): self.tasks = []
+    def __init__(self): self.tasks = []; self.bus = Bus()
     async def async_add_executor_job(self, fn, *args): return fn(*args)
     keep_tasks = False
     def async_create_task(self, coro):

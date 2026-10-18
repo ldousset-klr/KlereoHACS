@@ -6,7 +6,8 @@ def test_wait(check):
     from klereo.switch import KlereoOut
     from klereo.number import KlereoWaterSetpoint
     from klereo.klereo_api import KlereoAPI, KlereoError
-    from klereo.const import COMMAND_DONE, COMMAND_STATUS, COMMAND_POLL_DELAYS, HTTP_TIMEOUT
+    from klereo.const import (COMMAND_DONE, COMMAND_STATUS, COMMAND_POLL_DELAYS,
+                              EVENT_COMMAND_FAILED, HTTP_TIMEOUT)
     def pool():
         return {'idSystem':115,'poolNickname':'T','probes':[],'IORename':[],'PumpMaxSpeed':3,
                 'params':{'ConsigneEau':28.0},
@@ -59,6 +60,7 @@ def test_wait(check):
     h.run_tasks()
     check("CommandStatus appelé en fond", api2.calls[1], ('command_status', 77))
     check("optimiste conservé (appliquée)", sw._optimistic_state, True)
+    check("succès : aucun événement", h.bus.events, [])
     print("== un échec lâche l'optimiste et journalise la raison ==")
     for st, _mot in ((13,'access'), (17,'not connected'), (19,'firmware'), (10,'error')):
         c = Coordinator(pool()); a = Api(); a.wait_status = st; a.wait_detail = 'd'
@@ -68,6 +70,22 @@ def test_wait(check):
         check(f"  status={st} optimiste posé", sw._optimistic_state, True)
         h.run_tasks()
         check(f"  status={st} ({COMMAND_STATUS[st][:24]}) lâché", sw._optimistic_state, None)
+        check(f"  status={st} un seul événement", len(h.bus.events), 1)
+    print("== l'échec est publié sur le bus, pour les automatisations ==")
+    check("nom de l'événement", EVENT_COMMAND_FAILED, 'klereo_command_failed')
+    c = Coordinator(pool()); a = Api(); a.wait_status = 17; a.wait_detail = 'hors ligne'
+    h = Hass(); h.keep_tasks = True
+    sw = KlereoOut(a, c, c.data['outs'][0], 115, {}, None); sw.hass = h
+    sw.entity_id = 'switch.t_eclairage'
+    run(sw.async_turn_on()); h.run_tasks()
+    check("contenu", h.bus.events, [(EVENT_COMMAND_FAILED, {
+        'entity_id': 'switch.t_eclairage', 'pool_id': 115,
+        'command': f"{sw._name} on", 'cmd_id': 77, 'status': 17,
+        'reason': COMMAND_STATUS[17], 'detail': 'hors ligne'})])
+    a = Api(); a.wait_status = 14; h = Hass(); h.keep_tasks = True
+    sw = KlereoOut(a, Coordinator(pool()), pool()['outs'][0], 115, {}, None); sw.hass = h
+    run(sw.async_turn_on()); h.run_tasks()
+    check("statut hors table : raison générique", h.bus.events[0][1]['reason'], 'status 14')
     print("== encore en attente : lâché aussi, mais ce n'est pas un échec ==")
     for st in (0, 1):
         c = Coordinator(pool()); a = Api(); a.wait_status = st
@@ -75,12 +93,14 @@ def test_wait(check):
         sw = KlereoOut(a, c, c.data['outs'][0], 115, {}, None); sw.hass = h
         run(sw.async_turn_on()); h.run_tasks()
         check(f"  status={st}", sw._optimistic_state, None)
+        check(f"  status={st} : pas un échec, aucun événement", h.bus.events, [])
     print("== CommandStatus injoignable : on n'invente pas un échec ==")
     c = Coordinator(pool()); a = Api(); a.wait_raises = KlereoError('boom')
     h = Hass(); h.keep_tasks = True
     sw = KlereoOut(a, c, c.data['outs'][0], 115, {}, None); sw.hass = h
     run(sw.async_turn_on()); h.run_tasks()
     check("optimiste lâché, le payload tranchera", sw._optimistic_state, None)
+    check("  aucun événement", h.bus.events, [])
     print("== la consigne suit le même chemin ==")
     c = Coordinator(pool()); a = Api(); a.wait_status = 9
     h = Hass(); h.keep_tasks = True
@@ -91,6 +111,11 @@ def test_wait(check):
     h.run_tasks()
     check("CommandStatus sur le cmdID de SetParam", a.calls[1], ('command_status', 88))
     check("optimiste tenu", sp.native_value, 26.0)
+    a = Api(); a.wait_status = 11; h = Hass(); h.keep_tasks = True
+    sp = KlereoWaterSetpoint(a, Coordinator(pool()), 115, {}); sp.hass = h
+    run(sp.async_set_native_value(26.0)); h.run_tasks()
+    check("  son échec publie aussi", [(e, d['cmd_id'], d['status']) for e, d in h.bus.events],
+          [(EVENT_COMMAND_FAILED, 88, 11)])
     print("== le seul message d'erreur de CommandStatus ==")
     for m in ["Désolé, le service n'est pas disponible pour le moment"]:
         check(f"  {m}", KlereoAPI._looks_like_auth_error('error='+m), False)
@@ -117,6 +142,7 @@ def test_wait(check):
     run(sw.async_turn_on()); h.run_tasks()
     check("un seul essai, puis abandon", len([x for x in a.calls if x[0]=='command_status']), 1)
     check("optimiste lâché", sw._optimistic_state, None)
+    check("  aucun événement", h.bus.events, [])
     print()
 
     check.assert_ok()

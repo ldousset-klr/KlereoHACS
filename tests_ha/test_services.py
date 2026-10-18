@@ -4,7 +4,9 @@ import pytest
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
-from custom_components.klereo.const import DOMAIN
+from pytest_homeassistant_custom_component.common import async_capture_events
+
+from custom_components.klereo.const import COMMAND_STATUS, DOMAIN, EVENT_COMMAND_FAILED
 from custom_components.klereo.klereo_api import KlereoError
 
 
@@ -111,3 +113,24 @@ async def test_refused_write_is_a_message(hass, api, loaded):
         # Nothing shown ahead of the payload, nothing to confirm.
         assert hass.states.get(entity_id).state == before, entity_id
     assert ("command_status", 1) not in api.calls
+
+
+async def test_failed_command_fires_an_event(hass, api, loaded):
+    events = async_capture_events(hass, EVENT_COMMAND_FAILED)
+    await _call(hass, "switch", "turn_on", "switch.test_pool_spots")
+    assert events == []             # applied: nothing to report
+    api.command_result = 17         # the pod is not connected
+    await _call(hass, "switch", "turn_off", "switch.test_pool_spots")
+    assert len(events) == 1
+    assert events[0].data == {
+        "entity_id": "switch.test_pool_spots", "pool_id": 115,
+        "command": "Spots off", "cmd_id": 1, "status": 17,
+        "reason": COMMAND_STATUS[17], "detail": None,
+    }
+
+
+async def test_pending_command_fires_nothing(hass, api, loaded):
+    events = async_capture_events(hass, EVENT_COMMAND_FAILED)
+    api.command_result = 1          # sent, no answer yet: not a failure
+    await _call(hass, "switch", "turn_on", "switch.test_pool_spots")
+    assert events == []

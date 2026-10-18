@@ -128,6 +128,31 @@ holds the value you asked for until the pool confirms it, and reverts with the r
 the log if the controller refuses — it is not connected, it needs a firmware update, the
 account lacks the rights. Nothing waits on screen while that happens.
 
+That refusal also fires a **`klereo_command_failed`** event, so an automation can tell you
+about it:
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: klereo_command_failed
+actions:
+  - action: notify.notify
+    data:
+      message: "{{ trigger.event.data.command }} : {{ trigger.event.data.reason }}"
+```
+
+Its data carries `entity_id`, `pool_id`, `command` (what was asked, e.g. `Spots on`),
+`cmd_id`, `status` and `reason` (the controller's answer) and `detail` (its extra text,
+when it gives one). It fires only when the controller says the command failed — not when
+it simply has not answered within the 26 s the integration waits, the command possibly
+landing later.
+
+**Equipment added after setup appears on its own**: a probe or an output the controller
+starts reporting, or a heating whose kind it starts naming, gets its entities at the next
+poll — no reload needed. One the controller stops reporting keeps its entity, reading *unknown*,
+with its history, should it come back; delete it from the device page if it is gone for
+good.
+
 ## Current limitations
 
 - **Klereo reserves four outputs to a privileged account.** The pH corrector, the

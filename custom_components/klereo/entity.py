@@ -5,13 +5,14 @@ import logging
 
 from requests import RequestException
 
+from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .klereo_api import KlereoAPI, KlereoError
 from .const import (ACCESS_COMMAND_MIN, ACCESS_PARAM_ANY, COMMAND_DONE,
                     COMMAND_POLL_DELAYS, COMMAND_STATUS, DEF_SERVER, DOMAIN,
-                    KLEREO_PATH,
+                    EVENT_COMMAND_FAILED, KLEREO_PATH,
                     FILTRATION_OUT_INDEX, MAX_PUMP_SPEED,
                     TREATMENT_OUT_INDEXES,
                     OUT_MODE_NAME_OVERRIDES, OUT_MODE_STATES, OUT_MODES,
@@ -69,6 +70,44 @@ def klereo_device_info(pool_data, poolid, server=None) -> DeviceInfo:
         if value:
             info[field] = str(value)
     return info
+
+
+def klereo_add_entities(entry, async_add_entities, build):
+    """Add the entities a payload calls for, now and whenever a poll brings more.
+
+    build(coordinator, first) yields (key, factory) for every entity the
+    payload calls for, the key unique within the platform. Only the keys not
+    seen yet are built, so a probe or an out wired after setup, or a params
+    key that starts naming the heating's kind, gets its entity at the next poll
+    instead of waiting for a reload. `first` is true at setup alone, for
+    whatever the builder logs about what it is *not* creating — said once,
+    rather than every poll.
+
+    An entity whose item leaves the payload is kept: it reads unknown, and its
+    history stays, should the item come back.
+    """
+    coordinator = entry.runtime_data
+    known = set()
+
+    @callback
+    def add(first=False):
+        keys, new = [], []
+        for key, factory in build(coordinator, first):
+            if key in known:
+                continue
+            known.add(key)
+            keys.append(key)
+            new.append(factory())
+        if not new:
+            return
+        LOGGER.debug("Adding %s for pool #%s", keys,
+                     coordinator.data.get('idSystem'))
+        async_add_entities(new)
+
+    add(first=True)
+    # Called after every poll, the failed ones included, when data is unchanged
+    # and nothing is new. Removed when the entry unloads.
+    entry.async_on_unload(coordinator.async_add_listener(add))
 
 
 def klereo_items(pool_data, section):
@@ -365,9 +404,20 @@ class KlereoCommandMixin:
                 LOGGER.info("%s: command %s still pending (%s)", what, cmd_id,
                             COMMAND_STATUS.get(status, status))
             else:
+                reason = COMMAND_STATUS.get(status, f"status {status}")
                 LOGGER.error("%s: command %s failed — %s%s", what, cmd_id,
-                             COMMAND_STATUS.get(status, f"status {status}"),
-                             f" ({detail})" if detail else "")
+                             reason, f" ({detail})" if detail else "")
+                # The service call returned long ago: this is the only way an
+                # automation learns the pod refused.
+                self.hass.bus.async_fire(EVENT_COMMAND_FAILED, {
+                    "entity_id": self.entity_id,
+                    "pool_id": self._poolid,
+                    "command": what,
+                    "cmd_id": cmd_id,
+                    "status": status,
+                    "reason": reason,
+                    "detail": detail,
+                })
             # In every case but success the optimistic value has outlived its
             # usefulness: whatever the payload says next is more trustworthy.
             self._clear_optimistic()

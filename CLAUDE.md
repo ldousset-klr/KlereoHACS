@@ -285,8 +285,21 @@ credential disclosure, not just a connection failure.
   exception, taking only "off", so selecting it stops the dosing. `current_option` returns `None` rather than a name when the out
   carries a mode outside its permitted list: a reserved value must be left alone, and Home
   Assistant rejects a state that is not among the options anyway.
-- `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses created dynamically
-  from the coordinator's first payload. Entities are keyed by the Klereo `index` field and
+- **Every platform adds its entities through `entity.klereo_add_entities()`**, at setup
+  and again after every poll: the platform's `build(coordinator, first)` yields a `(key,
+  factory)` for each entity the payload calls for, and only keys not seen yet are built —
+  so a probe or an out wired after setup, an identity value that starts appearing, or a
+  heating whose `HeaterMode` starts naming its kind gets its entity at the next poll, with
+  no reload. The keys are the platform's own (an index, an `INFO_SENSORS` key, `"speed"`),
+  not the `unique_id`. The factory is lazy for a reason: building an entity can log — an
+  unknown probe type warns, a missing `PumpMaxSpeed` warns — and that must happen once,
+  when it is made, not every five minutes. For the same reason **what a builder says about
+  an entity it does *not* create is guarded by `first`**, said at setup and not at every
+  poll. The coordinator listener is removed with the entry. An item that leaves the
+  payload keeps its entity, which reads *unknown*; nothing is removed from the registry,
+  so its history survives a pod that drops an out for one poll.
+- `sensor.py` / `switch.py` — both are `CoordinatorEntity` subclasses built from the
+  payload as above. Entities are keyed by the Klereo `index` field and
   re-scan `coordinator.data` on every property read rather than caching — always through
   `entity.klereo_items()`/`klereo_item()`, which read an absent or null `probes`/`outs` as
   empty and skip an entry with no `index`, and with `.get()` on every field of a probe or
@@ -490,6 +503,15 @@ failure the optimistic value is dropped and the reason logged; on a command the 
 does not know, an unreadable status or the delays running out it is dropped too, since the
 command may well have been applied and only the confirmation lost — the payload is left to
 answer.
+
+**A failure also fires `klereo_command_failed`** (`EVENT_COMMAND_FAILED`) on the event
+bus, with `entity_id`, `pool_id`, `command` (the `what` the log uses), `cmd_id`,
+`status`, `reason` (`COMMAND_STATUS`'s text, or `status N` outside it) and `detail` —
+the only way an automation learns of a refusal, the service call having returned long
+before. **Only a status above `COMMAND_DONE` fires it**: pending, unknown and unreadable
+outcomes say nothing about the command having failed, and an automation notifying on
+them would cry wolf. A write refused before it is queued raises from the service call
+instead, and fires nothing.
 
 Two of its refusals are worth knowing. The server rejects the literal `NaN`, so
 `set_param()` refuses non-numbers and non-finite values before the round trip. And
