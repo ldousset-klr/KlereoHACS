@@ -1,4 +1,5 @@
 """Vérifie l’options flow, le reconfigure et l’intervalle de rafraîchissement."""
+import hashlib
 import json
 from datetime import timedelta
 from pathlib import Path
@@ -8,7 +9,11 @@ from klereo_stub import ConfigEntries, ConfigEntryData, Hass, run
 
 COMPONENT = Path(__file__).resolve().parent.parent / "custom_components" / "klereo"
 
-DATA = {'username': 'u', 'password': 'p', 'poolid': 115,
+def sha1(password):
+    return hashlib.sha1(password.encode()).hexdigest()
+
+# Version 2 : l'entrée garde le hash, jamais le mot de passe.
+DATA = {'username': 'u', 'password_hash': sha1('p'), 'poolid': 115,
         'server': 'https://dev.example'}
 
 
@@ -16,8 +21,8 @@ class FakeAPI:
     """Remplace KlereoAPI : note ce qu’on lui passe, lève ce qu’on lui dit."""
     made = []
     raises = None
-    def __init__(self, username, password, poolid=None, server=None):
-        FakeAPI.made.append((username, password, poolid, server))
+    def __init__(self, username, password_hash, poolid=None, server=None):
+        FakeAPI.made.append((username, password_hash, poolid, server))
     def get_pool(self):
         if FakeAPI.raises: raise FakeAPI.raises
         return {'idSystem': 115}
@@ -30,7 +35,7 @@ def _field(schema, name):
 
 def test_options(check, monkeypatch):
     import klereo
-    from klereo import async_entry_updated, async_setup_entry
+    from klereo import async_entry_updated, async_migrate_entry, async_setup_entry
     from klereo import config_flow
     from klereo.config_flow import KlereoConfigFlow, KlereoOptionsFlow
     from klereo.const import (CONF_SCAN_INTERVAL, DEF_SERVER, SCAN_INTERVAL_MAX,
@@ -129,10 +134,10 @@ def test_options(check, monkeypatch):
     check("abandon réussi", (done['type'], done['reason']),
           ('abort', 'reconfigure_successful'))
     check("validé contre le nouveau serveur, même piscine", FakeAPI.made,
-          [('u2', 'p2', 115, 'https://other.example')])
-    check("données mises à jour, poolID inchangé", entry.data,
-          {'username': 'u2', 'password': 'p2', 'poolid': 115,
-           'server': 'https://other.example'})
+          [('u2', sha1('p2'), 115, 'https://other.example')])
+    check("données mises à jour, poolID inchangé, hash et pas mot de passe",
+          entry.data, {'username': 'u2', 'password_hash': sha1('p2'), 'poolid': 115,
+                       'server': 'https://other.example'})
     check("une mise à jour puis un rechargement",
           [c[0] for c in hass.config_entries.calls], ['update', 'reload'])
     check("unique_id intact", entry.unique_id, '115')
@@ -158,7 +163,8 @@ def test_options(check, monkeypatch):
     def listen(options, runtime=True):
         entry = ConfigEntryData(DATA, options)
         hass = Hass(); hass.config_entries = ConfigEntries([entry])
-        hass.data = {'klereo': {'e': {'coordinator': Running()}}} if runtime else {}
+        if runtime:
+            entry.runtime_data = Running()
         run(async_entry_updated(hass, entry))
         return hass.config_entries.calls
     check("options inchangées (reauth, reconfigure) : rien", listen({}), [])
@@ -168,27 +174,50 @@ def test_options(check, monkeypatch):
     check("entrée déjà déchargée : rien, sans erreur", listen({'scan_interval': 600}, False), [])
 
     print("== la mise en place lit l'intervalle et branche l'écouteur ==")
-    class Coordinator:
-        made = []
-        def __init__(self, hass, logger, *, config_entry, name, update_method,
-                     update_interval):
-            self.update_interval = update_interval
-            Coordinator.made.append(self)
-        async def async_config_entry_first_refresh(self): pass
-    monkeypatch.setattr(klereo, 'DataUpdateCoordinator', Coordinator)
+    from klereo.coordinator import KlereoCoordinator
     monkeypatch.setattr(klereo, 'KlereoAPI', FakeAPI)
     for label, options, want in [("sans option", {}, 300),
                                  ("réglée", {'scan_interval': 1200}, 1200)]:
         entry = ConfigEntryData(DATA, options, unique_id='115')
         hass = Hass(); hass.config_entries = ConfigEntries([entry]); hass.data = {}
-        Coordinator.made.clear()
+        FakeAPI.made.clear()
         check(f"{label} : mise en place", run(async_setup_entry(hass, entry)), True)
-        check(f"{label} : intervalle", Coordinator.made[0].update_interval,
+        coordinator = getattr(entry, 'runtime_data', None)
+        check(f"{label} : coordinateur en runtime_data",
+              type(coordinator).__name__, KlereoCoordinator.__name__)
+        check(f"{label} : rien dans hass.data", hass.data, {})
+        check(f"{label} : intervalle", coordinator.update_interval,
               timedelta(seconds=want))
+        check(f"{label} : l'API porte le hash", FakeAPI.made,
+              [('u', sha1('p'), 115, 'https://dev.example')])
+        check(f"{label} : l'API est sur le coordinateur",
+              type(coordinator.api).__name__, 'FakeAPI')
         check(f"{label} : écouteur branché", entry.listeners, [async_entry_updated])
         check(f"{label} : et retiré au déchargement", len(entry.on_unload), 1)
         entry.on_unload[0]()
         check(f"{label} : retiré", entry.listeners, [])
+
+    print("== migration 1 -> 2 : le mot de passe devient son hash ==")
+    check("le flow est en version 2", KlereoConfigFlow.VERSION, 2)
+    def migrate(data, version):
+        entry = ConfigEntryData(data, unique_id='115'); entry.version = version
+        hass = Hass(); hass.config_entries = ConfigEntries([entry])
+        return run(async_migrate_entry(hass, entry)), entry, hass.config_entries.calls
+    v1 = {'username': 'u', 'password': 'p', 'poolid': 115}
+    ok, entry, calls = migrate(v1, 1)
+    check("v1 : migrée", (ok, entry.version), (True, 2))
+    check("v1 : hash à la place du mot de passe", entry.data,
+          {'username': 'u', 'password_hash': sha1('p'), 'poolid': 115})
+    from klereo.klereo_api import hash_password
+    check("v1 : le hash de l'API", entry.data['password_hash'], hash_password('p'))
+    check("v1 : une seule mise à jour", [c[0] for c in calls], ['update'])
+    ok, entry, calls = migrate({'username': 'u', 'poolid': 115}, 1)
+    check("v1 sans mot de passe : migrée, rien inventé", (ok, entry.version, entry.data),
+          (True, 2, {'username': 'u', 'poolid': 115}))
+    ok, entry, calls = migrate(DATA, 2)
+    check("v2 : rien à faire", (ok, entry.data, calls), (True, DATA, []))
+    ok, entry, calls = migrate(DATA, 3)
+    check("v3 : refusée, intacte", (ok, entry.data, calls), (False, DATA, []))
 
     print("== textes : chaque étape et chaque abandon est traduit ==")
     strings = json.loads((COMPONENT / 'strings.json').read_text())

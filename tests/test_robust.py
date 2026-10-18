@@ -1,7 +1,7 @@
 """Vérifie la 1.5.1 : erreurs d'écriture lisibles, sections absentes, lien de l'appareil."""
 from requests import ConnectionError as RequestsConnectionError
 
-from klereo_stub import Api, Coordinator, Hass, run
+from klereo_stub import Api, Coordinator, Hass, run, entry_for
 
 
 class FailingApi(Api):
@@ -60,9 +60,8 @@ def test_robust(check):
     print("== mise en place : une section absente ne fait rien planter ==")
     def setup(fn, pool):
         c = Coordinator(pool); added = []
-        class H(Hass): data = {'klereo': {'e': {'coordinator': c, 'api': Api()}}}
-        class E: entry_id = 'e'; data = {'server': 'https://dev.example/php'}
-        run(fn(H(), E(), lambda es: added.extend(es)))
+        entry = entry_for(c, {'server': 'https://dev.example/php'})
+        run(fn(Hass(), entry, lambda es: added.extend(es)))
         return added
     for label, pool in [("sans probes ni outs", {'idSystem': 115}),
                         ("probes et outs nuls", {'idSystem': 115, 'probes': None,

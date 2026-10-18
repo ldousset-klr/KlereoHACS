@@ -4,7 +4,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (CHLORINE_FLOW_PARAM, CONF_SERVER, DOMAIN, FLOCCULANT_OUT_INDEX,
+from .const import (CHLORINE_FLOW_PARAM, CONF_SERVER, FLOCCULANT_OUT_INDEX,
                     HYBRID_CHLORINE_OUT_INDEX, HYBRID_CHLORINE_TIME_KEY,
                     ICON_INFO, ICON_WATER_VOLUME, ML_PER_FLOW_UNIT,
                     OUT_TOTAL_TIME_KEY, PH_FLOW_PARAM, PROBE_ICONS,
@@ -209,7 +209,7 @@ INFO_SENSORS = (
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
 
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
+    coordinator = config_entry.runtime_data
     pool_data = coordinator.data
     poolid = pool_data['idSystem']
     device_info = klereo_device_info(pool_data, poolid,
@@ -326,6 +326,9 @@ class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
         self._attr_device_info = device_info
         # Same rule as everywhere else: unique_id follows the key, not the name.
         self._key = f"klereo{poolid}{info.key}"
+        # Named from strings.json under the row's key, so it reads in Home
+        # Assistant's language; the label is the English name and the log's.
+        self._attr_translation_key = info.key
         self._name = info.label
         self._getter = info.getter
         self._attr_device_class = info.device_class
@@ -337,10 +340,6 @@ class KlereoInfoSensor(CoordinatorEntity, SensorEntity):
         self._attr_native_unit_of_measurement = info.unit
         self._attr_state_class = info.state_class
         self._attr_entity_registry_enabled_default = info.enabled
-
-    @property
-    def name(self):
-        return self._name
 
     @property
     def unique_id(self):

@@ -7,7 +7,7 @@ one's address, serial or PIN.
 import copy
 
 from custom_components.klereo import const
-from custom_components.klereo.klereo_api import KlereoAPI
+from custom_components.klereo.klereo_api import KlereoAPI, hash_password
 
 POOLID = 115
 
@@ -58,7 +58,11 @@ POOL = {
     },
 }
 
-DATA = {"username": "user@example.com", "password": "secret",
+PASSWORD = "secret"
+PASSWORD_HASH = hash_password(PASSWORD)
+
+# A version 2 entry: the password's hash, never the password.
+DATA = {"username": "user@example.com", "password_hash": PASSWORD_HASH,
         "poolid": POOLID, "server": const.DEF_SERVER}
 
 
@@ -77,8 +81,8 @@ class FakeKlereoAPI:
     made = []
     calls = []
 
-    def __init__(self, username, password, poolid=None, server=None):
-        FakeKlereoAPI.made.append((username, password, poolid, server))
+    def __init__(self, username, password_hash, poolid=None, server=None):
+        FakeKlereoAPI.made.append((username, password_hash, poolid, server))
         self.poolid = poolid
 
     def get_pool(self):

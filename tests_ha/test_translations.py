@@ -15,6 +15,14 @@ KEYS = {
         "abort.already_configured", "abort.no_pools",
     ],
     "options": ["step.init.title", "step.init.data.scan_interval"],
+    "entity": [
+        *(f"sensor.{key}.name" for key in (
+            "pin", "device", "volume", "filtrationtime", "phtime", "disinfectanttime",
+            "heatingtime", "phvolume", "disinfectantvolume", "flocculantvolume",
+            "hybridchlorinevolume")),
+        "number.water_setpoint.name", "number.filtration_speed.name",
+        "select.out_mode.name",
+    ],
     "exceptions": [
         f"{key}.message" for key in (
             "out_read_only", "out_mode_no_switching", "out_mode_ambiguous_state",

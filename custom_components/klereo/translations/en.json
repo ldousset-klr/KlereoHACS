@@ -64,6 +64,56 @@
       }
     }
   },
+  "entity": {
+    "sensor": {
+      "pin": {
+        "name": "PIN"
+      },
+      "device": {
+        "name": "Device"
+      },
+      "volume": {
+        "name": "Water volume"
+      },
+      "filtrationtime": {
+        "name": "Filtration runtime"
+      },
+      "phtime": {
+        "name": "pH corrector runtime"
+      },
+      "disinfectanttime": {
+        "name": "Disinfectant runtime"
+      },
+      "heatingtime": {
+        "name": "Heating runtime"
+      },
+      "phvolume": {
+        "name": "pH corrector volume"
+      },
+      "disinfectantvolume": {
+        "name": "Disinfectant volume"
+      },
+      "flocculantvolume": {
+        "name": "Flocculant volume"
+      },
+      "hybridchlorinevolume": {
+        "name": "Hybrid chlorine volume"
+      }
+    },
+    "number": {
+      "water_setpoint": {
+        "name": "Water setpoint"
+      },
+      "filtration_speed": {
+        "name": "{out} speed"
+      }
+    },
+    "select": {
+      "out_mode": {
+        "name": "{out} mode"
+      }
+    }
+  },
   "exceptions": {
     "out_read_only": {
       "message": "{name} cannot be driven from Home Assistant: the controller has not said which states it accepts — or, on the heating and the disinfectant, what the pool is equipped with."

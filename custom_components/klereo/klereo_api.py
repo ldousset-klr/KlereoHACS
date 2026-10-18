@@ -21,10 +21,20 @@ class KlereoAuthError(KlereoError):
 AUTH_HINTS = ("jwt", "token", "auth", "login", "expir", "credential")
 
 
+def hash_password(password):
+    """The SHA-1 hex digest GetJWT.php takes in place of the password.
+
+    The config entry stores this rather than the password itself, so the API
+    is built from the hash and never sees the clear text.
+    """
+    return hashlib.sha1(password.encode()).hexdigest()
+
+
 class KlereoAPI:
-    def __init__(self, username, password, poolid=None, server=None):
+    def __init__(self, username, password_hash, poolid=None, server=None):
         self.username = username
-        self.password = password
+        # hash_password() of the password, as the entry stores it.
+        self.password_hash = password_hash
         self.poolid = poolid
         self.base_url = self._base_url(server)
         self.jwt = None
@@ -41,9 +51,6 @@ class KlereoAPI:
         if not base.endswith(KLEREO_PATH):
             base += KLEREO_PATH
         return base
-
-    def hash_password(self):
-        return hashlib.sha1(self.password.encode()).hexdigest()
 
     @staticmethod
     def _parse(response, endpoint):
@@ -76,10 +83,9 @@ class KlereoAPI:
     def get_jwt(self):
         endpoint = "GetJWT.php"
         url = f"{self.base_url}/{endpoint}"
-        hashed_password = self.hash_password()
         payload = {
             'login': self.username,
-            'password': hashed_password,
+            'password': self.password_hash,
             'version': HA_VERSION,
             'app': 'api'
         }

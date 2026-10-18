@@ -19,7 +19,10 @@ with:
 - `Api` — records every `set_out` / `set_param` / `command_status` call, and can be told
   what `command_status` should answer (`wait_status`, `wait_sequence`, `wait_missing`,
   `wait_raises`).
-- `Coordinator` — holds a payload as `data` and a `config_entry`.
+- `Coordinator` — holds a payload as `data`, a `config_entry` and the `api`, as
+  `KlereoCoordinator` does; `entry_for(coordinator, data)` makes the entry a platform is
+  set up from, with the coordinator as its `runtime_data`. `DataUpdateCoordinator` is a
+  stub base keeping what it is built with, so `async_setup_entry` runs for real.
 - `Hass` — `async_add_executor_job` calls straight through; `keep_tasks` / `run_tasks`
   let a test hold a background confirmation and step through it.
 - `FakeEntry` — keeps the background tasks it is handed, and cancels them on unload.
@@ -68,9 +71,9 @@ release, still install the component in a running Home Assistant and read the lo
 | `test_floc.py` | the flocculant's two modes, its Manuel that stops the pump, and its "Volume fixe" wording |
 | `test_heat.py` | `params.HeaterMode` selecting the heating's modes and their names — mode 3 is "Régulé" on a heater and "Réchauffe" on a heat pump; no `HeaterMode` means read-only |
 | `test_hybrid.py` | hybrid chlorine's single permitted mode, and the switch that is the real gain over it |
-| `test_naming.py` | every entity class sets `has_entity_name`, so each is named after its pool |
+| `test_naming.py` | every entity class sets `has_entity_name`, so each is named after its pool; the classes named by `translation_key` have that key in `strings.json` and both translations, with the same placeholders |
 | `test_modes.py` | the mode select in general: options offered, a reserved mode reported as `None`, `newState` = keep on a write, and the switch's refusals |
-| `test_options.py` | the poll interval — default, clamping, junk in storage; the options form's bounds and the whole seconds it stores; reconfigure validating the new server on the same poolID, requiring the password again, and leaving the entry alone on a refusal; the update listener reloading on an interval change only; every new step and abort translated in both languages |
+| `test_options.py` | the poll interval — default, clamping, junk in storage; the options form's bounds and the whole seconds it stores; reconfigure validating the new server on the same poolID, requiring the password again, and leaving the entry alone on a refusal; the update listener reloading on an interval change only; setup putting the coordinator, carrying the API built from the hash, in `runtime_data` and nothing in `hass.data`; the version 1 → 2 migration replacing the password by its hash, and refusing a version 3; the flows storing the hash, never the password; every new step and abort translated in both languages |
 | `test_ph.py` | the pH corrector's modes, the `newState` each one sends, and the error text naming the entity as the user sees it |
 | `test_resume.py` | the filtration's last-known speed: learned from polls, sent back on `turn_on`, restored after a restart, ignored when out of range |
 | `test_robust.py` | 1.5.1: a write Klereo or the network refuses becomes a `HomeAssistantError` with `command_failed` and the server's reason, leaving no optimistic value and no confirmation; absent or null `probes`/`outs` and missing fields set up and read as `None`; the device's link following the entry's server |

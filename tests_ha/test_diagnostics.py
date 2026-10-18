@@ -4,7 +4,7 @@ from http import HTTPStatus
 
 from homeassistant.setup import async_setup_component
 
-from pool import POOL
+from pool import PASSWORD_HASH, POOL
 
 REDACTED = "**REDACTED**"
 
@@ -20,7 +20,7 @@ async def _download(hass, hass_client, entry):
 
 async def test_content(hass, hass_client, loaded):
     data = (await _download(hass, hass_client, loaded))["data"]
-    assert data["entry"]["data"] == {"username": REDACTED, "password": REDACTED,
+    assert data["entry"]["data"] == {"username": REDACTED, "password_hash": REDACTED,
                                      "poolid": 115, "server": "https://connect.klereo.fr"}
     assert data["entry"]["title"] == REDACTED
     assert data["entry"]["options"] == {}
@@ -50,6 +50,6 @@ async def test_nothing_personal_leaks(hass, hass_client, api, entry):
     text = json.dumps(payload, ensure_ascii=False)
     for secret in ("12 rue des Lilas", "Ville-Témoin", "owner@example.com", "0600000000",
                    "FR7600000000000000000000000",            # unread keys
-                   "user@example.com", "secret",              # credentials
+                   "user@example.com", PASSWORD_HASH,         # credentials
                    "TEST0000", "1234", "Test pool"):          # serial, PIN, nickname
         assert secret not in text, secret

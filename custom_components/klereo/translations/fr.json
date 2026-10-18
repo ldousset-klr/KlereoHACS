@@ -64,6 +64,56 @@
       }
     }
   },
+  "entity": {
+    "sensor": {
+      "pin": {
+        "name": "PIN"
+      },
+      "device": {
+        "name": "Numéro d'appareil"
+      },
+      "volume": {
+        "name": "Volume d'eau"
+      },
+      "filtrationtime": {
+        "name": "Durée de filtration"
+      },
+      "phtime": {
+        "name": "Durée du correcteur pH"
+      },
+      "disinfectanttime": {
+        "name": "Durée du désinfectant"
+      },
+      "heatingtime": {
+        "name": "Durée du chauffage"
+      },
+      "phvolume": {
+        "name": "Volume de correcteur pH"
+      },
+      "disinfectantvolume": {
+        "name": "Volume de désinfectant"
+      },
+      "flocculantvolume": {
+        "name": "Volume de floculant"
+      },
+      "hybridchlorinevolume": {
+        "name": "Volume de chlore hybride"
+      }
+    },
+    "number": {
+      "water_setpoint": {
+        "name": "Consigne eau"
+      },
+      "filtration_speed": {
+        "name": "Vitesse {out}"
+      }
+    },
+    "select": {
+      "out_mode": {
+        "name": "Mode {out}"
+      }
+    }
+  },
   "exceptions": {
     "out_read_only": {
       "message": "{name} n'est pas pilotable depuis Home Assistant : le coffret n'a pas indiqué quels états elle accepte — ou, pour le chauffage et le désinfectant, de quoi le bassin est équipé."

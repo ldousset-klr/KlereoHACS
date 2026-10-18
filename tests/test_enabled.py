@@ -1,5 +1,5 @@
 """Vérifie les contrôles désactivés par défaut."""
-from klereo_stub import Api, Coordinator, Hass, run
+from klereo_stub import Api, Coordinator, Hass, run, entry_for
 
 
 def test_enabled(check):
@@ -20,9 +20,8 @@ def test_enabled(check):
                          'realStatus':1,'updateTime':0} for i in range(16)]}
     def setup(fn):
         c = Coordinator(pool()); added=[]
-        class H(Hass): data={'klereo':{'e':{'coordinator':c,'api':Api()}}}
-        class E: entry_id='e'; data={}
-        run(fn(H(), E(), lambda es: added.extend(es)))
+        entry = entry_for(c)
+        run(fn(Hass(), entry, lambda es: added.extend(es)))
         return added
     print("== la table dit ce que l'utilisateur a demandé ==")
     check("désactivées", sorted(OUTS_DISABLED_BY_DEFAULT), DISABLED)
