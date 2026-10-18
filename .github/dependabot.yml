@@ -1,0 +1,18 @@
+# Proposes updates as pull requests, which then run through validate.yml like
+# any other change.
+version: 2
+updates:
+  # The actions validate.yml and release.yml pin to a commit SHA. Dependabot
+  # follows the version in the comment beside each SHA and moves both together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # requirements-lint.txt's ruff pin; requirements-test.txt pins nothing.
+  # tests_ha/ is deliberately left out: requirements-min.txt pins the harness
+  # to Home Assistant 2024.11.0, the minimum hacs.json declares, and bumping it
+  # would stop testing that minimum.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,10 +1,9 @@
 """Vérifie la consigne d’eau."""
-from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run, entry_for
+from klereo_stub import Coordinator, Hass, run, entry_for
 
 
 def test_setpoint(check):
-    from klereo.number import (KlereoWaterSetpoint, KlereoFiltrationSpeed,
-                               async_setup_entry as number_setup)
+    from klereo.number import (KlereoWaterSetpoint, async_setup_entry as number_setup)
     from klereo.const import SETPOINT_MIN, SETPOINT_MAX, SETPOINT_STEP
     def pool(params=None, outs=None, max_speed=3):
         return {'idSystem':115,'poolNickname':'T','probes':[],'IORename':[],

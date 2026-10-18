@@ -5,7 +5,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (CHLORINE_FLOW_PARAM, CONF_SERVER, FLOCCULANT_OUT_INDEX,
-                    HYBRID_CHLORINE_OUT_INDEX, HYBRID_CHLORINE_TIME_KEY,
+                    HYBRID_CHLORINE_TIME_KEY,
                     ICON_INFO, ICON_WATER_VOLUME, ML_PER_FLOW_UNIT,
                     OUT_TOTAL_TIME_KEY, PH_FLOW_PARAM, PROBE_ICONS,
                     PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,

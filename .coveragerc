@@ -1,0 +1,15 @@
+# Coverage of the integration itself, measured by both suites in CI:
+#   python -m pytest --cov
+#   python -m pytest -c tests_ha/pytest.ini tests_ha --cov
+# Each covers what the other cannot — the stub suite the API's HTTP handling and
+# every rule table, the Home Assistant suite the flows, the diagnostics and the
+# setup — so each is held to the floor on its own.
+[run]
+source = custom_components/klereo
+
+[report]
+# Both sit at 83% today; the floor catches a large untested addition, not a
+# point lost to a refactor.
+fail_under = 80
+show_missing = true
+skip_covered = true

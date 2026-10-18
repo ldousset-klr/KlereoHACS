@@ -5,5 +5,7 @@
 # the config and options flows build their forms with it, and the suites fill
 # those forms in to check their defaults and required fields.
 pytest
+# Coverage in CI (.coveragerc); a plain `python -m pytest` does not need it.
+pytest-cov
 requests
 voluptuous

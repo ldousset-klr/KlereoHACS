@@ -1,0 +1,17 @@
+# ruff check, run by .github/workflows/validate.yml. Lint only: the code keeps its
+# own layout, so there is no `ruff format` and no import sorting — the rules are
+# the ones that find mistakes (pyflakes, syntax, bugbear), not the ones that
+# restyle.
+target-version = "py312"
+
+[lint]
+select = ["E4", "E7", "E9", "F", "B"]
+
+[lint.per-file-ignores]
+# The suites are tables of short checks written one per line on purpose
+# (`c = Coordinator(p); added = []`), and their lambdas are called within the
+# loop iteration that defines them, which is what B023 cannot see.
+"tests/*" = ["E701", "E702", "B023"]
+# The stub installs fake modules one after the other, and imports each
+# Home Assistant name only once the module it lives in exists.
+"tests/klereo_stub.py" = ["E402", "E701", "E702"]

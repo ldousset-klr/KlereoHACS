@@ -8,16 +8,24 @@ A Home Assistant custom integration (distributed via HACS) for Klereo swimming p
 controllers. The component lives in `custom_components/klereo/` and is copied as-is to
 the same path under the Home Assistant host's `config/`. The root holds `README.md`,
 `hacs.json` (HACS reads it there, never inside the component), `LICENSE`,
-`.github/workflows/`, `pytest.ini` and `tests/`. There is no build system and no
-linter; `tests/` holds a pytest suite that runs against a stub Home Assistant, and
+`.github/workflows/`, `pytest.ini`, `ruff.toml`, `.coveragerc` and `tests/`. There is no
+build system; `tests/` holds a pytest suite that runs against a stub Home Assistant, and
 `.github/workflows/validate.yml` runs it.
+
+**ruff** is the linter: `pip install -r requirements-lint.txt` then `ruff check .` from
+the root. `ruff.toml` selects the rules that find mistakes — pyflakes, syntax errors,
+bugbear — and nothing that restyles: there is no `ruff format` and no import sorting,
+the code keeping its own layout. The suites' one-line `a; b` style and their lambdas
+called within the loop that defines them are exempted under `tests/`. ruff is pinned
+there, so a release adding a rule cannot turn CI red by itself; Dependabot proposes the
+bumps.
 
 All source paths below are relative to `custom_components/klereo/`.
 
 ## Testing changes
 
 `pip install -r requirements-test.txt`, then `python -m pytest` from the root, runs the
-suite in `tests/`. That file is **pytest, `requests` and `voluptuous`** — no Home
+suite in `tests/`. That file is **pytest, `requests` and `voluptuous`**, plus `pytest-cov` for CI — no Home
 Assistant, no network. `tests/klereo_stub.py` installs fake `homeassistant.*` modules into
 `sys.modules`, and `tests/conftest.py` imports it before anything else so the component's
 own imports resolve against the stub. **`requests` is deliberately not stubbed**: it is
@@ -72,9 +80,18 @@ and everything routine is DEBUG: the poll every five minutes, setup, a JWT renew
 servers' replies and each entity added. The username is an email address and is never
 logged. Log with `%s` arguments, not f-strings.
 
-`.github/workflows/validate.yml` runs **pytest** (on Python 3.12 and 3.13), the
+`.github/workflows/validate.yml` runs **ruff**, **pytest** (on Python 3.12 and 3.13), the
 **`tests_ha/` suite** (Home Assistant 2024.11.0 and latest), **hassfest** and the
-**HACS action** on every push to `main`, every PR and weekly. hassfest is strict about `manifest.json`: keys must read
+**HACS action** on every push to `main`, every PR and weekly. Both suites run under
+**coverage** (`--cov`, configured in `.coveragerc`), each held to an 80% floor on its
+own since each covers what the other cannot — both sit at 83% — and each job writes its
+table to the run summary. The workflow's token is read-only. Actions are **pinned to a
+commit SHA** with the version in a comment, which Dependabot (`.github/dependabot.yml`)
+moves together; hassfest and the HACS action stay on their branches, being wrappers
+around floating images (`ghcr.io/home-assistant/hassfest`, `ghcr.io/hacs/action:main`)
+that a SHA would not pin. Dependabot also bumps `requirements-lint.txt`, and leaves
+`tests_ha/` alone: `requirements-min.txt` pins the harness to the minimum Home Assistant
+on purpose. hassfest is strict about `manifest.json`: keys must read
 `domain`, `name`, then alphabetical; `requirements` must not list a package Home
 Assistant itself depends on — `requests` sat there until hassfest started rejecting it in
 October 2026, failing a weekly run with no commit of ours; and an integration defining `async_setup` must also
@@ -85,6 +102,14 @@ tree. Its `brands` check is ignored permanently: that repository no longer accep
 integrations.
 
 Bump `version` in `manifest.json` when publishing a release that HACS should pick up.
+**Tags read `X.Y.Z`, with no "v"**, and releases are titled `vX.Y.Z`;
+`.github/workflows/release.yml` runs `.github/scripts/check_release.py` on every release
+published or edited, and fails it when the tag carries a "v", when it differs from the
+manifest's `version` at that tag, or when a `compare/A...B` link in the description names
+something that is not a tag or does not end at the release — 1.5.1 first shipped with
+`compare/v1.5.0...v1.5.1`, a link to nothing. A title off the convention, or a link not
+starting at the previous release, only warns. It runs once the release exists, so it
+reports rather than prevents: fix the release, and the `edited` run confirms it.
 `hacs.json` declares the minimum Home Assistant version (2024.11.0, set by the
 `config_entry` argument the coordinator is built with — it was added in that release and
 raises `TypeError` on 2024.10 and earlier); raise it if newer HA APIs are adopted.

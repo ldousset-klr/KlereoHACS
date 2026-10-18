@@ -1,9 +1,9 @@
 """Vérifie le compteur de filtration."""
-from klereo_stub import Api, Coordinator, Hass, run, entry_for
+from klereo_stub import Coordinator, Hass, run, entry_for
 
 
 def test_runtime(check):
-    from klereo.sensor import (INFO_SENSORS, KlereoInfoSensor,
+    from klereo.sensor import (KlereoInfoSensor,
                                async_setup_entry as sensor_setup)
     def pool(params=None, **over):
         d = {'idSystem':115,'poolNickname':'T','outs':[],'probes':[],'IORename':[],

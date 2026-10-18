@@ -14,7 +14,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tests"))
 sys.path.insert(0, str(REPO / "custom_components"))
 
-import klereo_stub  # noqa: E402  — must precede any klereo import
+import klereo_stub  # noqa: E402, F401  — must precede any klereo import
 
 
 class Check:

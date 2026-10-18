@@ -1,7 +1,7 @@
 """Vérifie les volumes dosés : temps de marche x débit de la pompe."""
 from copy import deepcopy
 
-from klereo_stub import Api, Coordinator, Hass, run, entry_for
+from klereo_stub import Coordinator, Hass, run, entry_for
 
 
 def test_dosed(check):

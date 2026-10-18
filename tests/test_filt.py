@@ -5,8 +5,8 @@ from klereo_stub import Api, Coordinator, Hass, ServiceValidationError, run
 def test_filt(check):
     from klereo.select import KlereoOutMode
     from klereo.switch import KlereoOut
-    from klereo.number import KlereoFiltrationSpeed, async_setup_entry as number_setup
-    from klereo.entity import klereo_out_mode_states, klereo_pump_max_speed
+    from klereo.number import KlereoFiltrationSpeed
+    from klereo.entity import klereo_out_mode_states
     def pool(outs, max_speed=3):
         d = {'idSystem': 115, 'poolNickname': 'T', 'outs': outs, 'probes': [],
              'IORename': [], 'params': {}}

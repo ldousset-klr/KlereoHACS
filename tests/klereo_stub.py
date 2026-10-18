@@ -13,7 +13,9 @@ cancellable and interrogable, so a test can assert a confirmation was dropped
 rather than merely that it did not run.
 """
 
-import sys, types, asyncio
+import asyncio
+import sys
+import types
 
 def _mod(name):
     m = types.ModuleType(name)
