@@ -262,6 +262,11 @@ without circulation is meaningless. It can then sit hours behind `directValue`. 
 Types 9, 10 and 15 carry no unit: the controller does not know the quantity. Type 7 covers
 both alkalinity and hardness without distinguishing them.
 
+Home Assistant shows temperatures and pH to a tenth, redox to the millivolt and pressure
+to ten millibars. The first three only set the display, the history keeping the reading
+as sent; Home Assistant cannot display coarser than a unit, so the pressure is rounded in
+the state itself.
+
 ### `outs[]`
 
 | field | meaning |

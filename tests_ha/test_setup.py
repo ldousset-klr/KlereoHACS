@@ -315,3 +315,19 @@ async def test_mode_options_follow_the_payload(hass, api, loaded):
     await _coordinator(hass, loaded).async_refresh()
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == "unavailable"
+
+
+async def test_probe_precision(hass, api, loaded):
+    """Each probe is shown to its unit's resolution; the pressure to the ten."""
+    registry = er.async_get(hass)
+    for entity_id, digits in (("sensor.test_pool_eau_bassin", 1),
+                              ("sensor.test_pool_capteur_ph", 1),
+                              ("sensor.test_pool_capteur_redox", 0),
+                              ("sensor.test_pool_pression_gen2_a", 0)):
+        options = registry.async_get(entity_id).options["sensor"]
+        assert options["suggested_display_precision"] == digits, entity_id
+    pressure = next(p for p in api.pool["probes"] if p["type"] == 6)
+    pressure["filteredValue"] = 1234
+    await _coordinator(hass, loaded).async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.test_pool_pression_gen2_a").state == "1230.0"
