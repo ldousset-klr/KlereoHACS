@@ -155,10 +155,16 @@ PROBE_TYPE_DEFAULT = ("unsupported", None, None, "measurement")
 PROBE_DIGITS = {
     0: 1,     # °C
     1: 1,     # °C
+    2: 0,     # %
     3: 1,     # pH
     4: 0,     # mV
     5: 1,     # °C
     6: -1,    # mbar
+    7: 1,     # °f
+    8: 1,     # g/L
+    12: 0,    # %
+    13: 0,    # %
+    14: 1,    # mg/L
 }
 
 # outs[].status, and the newState SetOut takes.
