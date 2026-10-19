@@ -9,7 +9,8 @@ from .const import (CHLORINE_FLOW_PARAM, CONF_SERVER, FLOCCULANT_OUT_INDEX,
                     HYBRID_CHLORINE_TIME_KEY,
                     ICON_INFO, ICON_WATER_VOLUME, ML_PER_FLOW_UNIT,
                     OUT_TOTAL_TIME_KEY, PH_FLOW_PARAM, PROBE_ICONS,
-                    PROBE_INVALID, PROBE_LABELS, PROBE_TYPES,
+                    PROBE_DIGITS, PROBE_INVALID, PROBE_LABELS,
+                    PROBE_TYPES,
                     PROBE_TYPE_DEFAULT, PUMP_DOSED_TREATMENTS,
                     SECONDS_PER_HOUR)
 from .entity import (IO_TYPE_PROBE, klereo_add_entities, klereo_device_info,
@@ -265,6 +266,9 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
             self._attr_icon = PROBE_ICONS.get(self._type)
         self._attr_native_unit_of_measurement = unit
         self._attr_state_class = state_class
+        self._digits = PROBE_DIGITS.get(self._type)
+        if self._digits is not None:
+            self._attr_suggested_display_precision = max(self._digits, 0)
 
     def _probe(self):
         """Return this probe in the freshest payload, or None if it disappeared."""
@@ -299,6 +303,9 @@ class KlereoSensor(CoordinatorEntity, SensorEntity):
             # Absent or unreadable probe: report unknown rather than -1000.
             LOGGER.debug("%s reports no measurement (%s)", self._name, value)
             return None
+        if self._digits is not None and self._digits < 0:
+            # Coarser than a unit: the display cannot, so the state does.
+            return round(value, self._digits)
         return value
 
     @property

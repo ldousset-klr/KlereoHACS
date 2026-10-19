@@ -262,6 +262,12 @@ without circulation is meaningless. It can then sit hours behind `directValue`. 
 Types 9, 10 and 15 carry no unit: the controller does not know the quantity. Type 7 covers
 both alkalinity and hardness without distinguishing them.
 
+Home Assistant shows temperatures, pH, TAC/TH, salinity, chlorine and flow to a tenth, levels
+and redox to the unit, and pressure to ten millibars. Most of these only set the display,
+the history keeping the reading as sent; Home Assistant cannot display coarser than a
+unit, so the pressure is rounded in the state itself. Turbidity, generic and unknown
+probes are shown as they come.
+
 ### `outs[]`
 
 | field | meaning |
@@ -417,7 +423,6 @@ a heating or disinfectant whose controller does not say what it drives stays rea
 
 - **What `outs[].type` encodes.** It is not the output's role, and not the firmware's
   `e_OutTypes` either, so it is published as an attribute and nothing reads it.
-- **More translations.** French and English only.
 
 ## Disclaimer
 

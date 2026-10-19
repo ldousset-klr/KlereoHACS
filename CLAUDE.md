@@ -381,6 +381,11 @@ The rest of the code depends on these keys:
   firmware does not distinguish; its `°f` is the French degree of alkalinity/hardness, not
   Fahrenheit, and must never be given a temperature `device_class`. A `filteredValue` of
   `-1000` means the probe is absent or unreadable and becomes `None`.
+  **Each type is shown to its own resolution**, from `PROBE_DIGITS` — °C, pH, °f, g/L,
+  mg/L and m³/h to a tenth, % and mV to the unit, mbar to the ten, the codeowner's choice. It is `round()`'s
+  digits: `suggested_display_precision` takes them where they are 0 or more, leaving the
+  recorded state as the pod sent it, but that field cannot go below 0, so the pressure's
+  -1 is applied to `native_value` itself. A type not in the table is shown as it comes.
 - `params` points at some probes: `EauCapteur`, `pHCapteur`, `TraitCapteur` and
   `PressionCapteur` hold probe *indexes*, and each probe's `seuilMin`/`seuilMax` mirror the
   matching `params` bounds (`EauMin/Max`, `pHMin/Max`, `OrpMin/Max`, `AirMin/Max`,
