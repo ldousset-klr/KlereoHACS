@@ -14,10 +14,11 @@ def test_precision(check):
     for ptype, unit, digits in ((0, '°C', 1), (1, '°C', 1), (5, '°C', 1),
                                 (2, '%', 0), (12, '%', 0), (13, '%', 0),
                                 (3, 'pH', 1), (4, 'mV', 0), (6, 'mbar', 0),
-                                (7, '°f', 1), (8, 'g/L', 1), (14, 'mg/L', 1)):
+                                (7, '°f', 1), (8, 'g/L', 1), (11, 'm³/h', 1),
+                                (14, 'mg/L', 1)):
         check(f"  type {ptype} ({unit})",
               getattr(sensor(ptype, 1.0), '_attr_suggested_display_precision', None), digits)
-    for ptype, what in ((9, 'turbidité'), (10, 'générique'), (11, 'débit'), (15, 'inconnu')):
+    for ptype, what in ((9, 'turbidité'), (10, 'générique'), (15, 'inconnu')):
         check(f"  type {ptype} ({what}) : telle quelle",
               getattr(sensor(ptype, 1.0), '_attr_suggested_display_precision', None), None)
 
