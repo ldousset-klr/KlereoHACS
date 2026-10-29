@@ -32,7 +32,8 @@ own imports resolve against the stub. **`requests` is deliberately not stubbed**
 the integration's own runtime dependency — Home Assistant itself ships it, which is why
 `manifest.json` lists **no requirements** (hassfest rejects a core dependency there) — four
 modules import it at module scope, and the `KlereoAPI` suites drive the real library with a
-monkeypatched session rather than a fake exception hierarchy. `voluptuous` is real for
+monkeypatched session rather than a fake exception hierarchy — `test_api.py` scripts its
+replies to walk the JWT renewal and replay, the one path that leads a user to reauth. `voluptuous` is real for
 the same reason: the flows build their forms with it, and `test_options.py` fills them
 in to check the defaults and the required fields.
 The stub also carries the fakes the suites drive the code with: `Api` (records every
@@ -84,7 +85,7 @@ logged. Log with `%s` arguments, not f-strings.
 **`tests_ha/` suite** (Home Assistant 2024.11.0 and latest), **hassfest** and the
 **HACS action** on every push to `main`, every PR and weekly. Both suites run under
 **coverage** (`--cov`, configured in `.coveragerc`), each held to an 80% floor on its
-own since each covers what the other cannot — both sit at 83% — and each job writes its
+own since each covers what the other cannot — the stubbed one at 90%, the Home Assistant one at 84% — and each job writes its
 table to the run summary. The workflow's token is read-only. Actions are **pinned to a
 commit SHA** with the version in a comment, which Dependabot (`.github/dependabot.yml`)
 moves together; hassfest and the HACS action stay on their branches, being wrappers
